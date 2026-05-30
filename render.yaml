@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: kadi-react
+    runtime: node
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
