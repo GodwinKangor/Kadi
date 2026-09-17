@@ -40,7 +40,7 @@ If one of these cards is drawn, the dealer returns it to the draw pile, shuffles
 - Once a question exchange is resolved (or abandoned by drawing), play continues as normal from the next player, matching suit or rank against whatever card is now on top of the discard pile.
 - If a player plays a Jump Card, the next player is skipped. However, the player who was to play next can counter the move by playing their individual Jump Card, and the rules for Jump Cards apply based on this move.
 - If a player plays a Kickback Card, the game direction reverses. The player who was to play next can counter the move by playing their individual Kickback Card, and the rules for Kickback Cards apply based on the move made.
-- Multiple Jump Cards can be played by the same player, and with each card, a player is skipped in the direction of play. Similarly, if multiple Kickback Cards are played, the direction reverses with each card.
+- A player may play several cards of the exact same rank together as a single move (for example three different 5s, or two 2s) — this applies to every rank except Question Cards, which instead chain by matching suit as described above. Their effects stack: multiple Jump Cards skip one extra player each, multiple Kickback Cards reverse direction once each (so an even number cancels out), and multiple Penalty Cards of the same rank add their values together same as "bomb for bomb". A bulk play of Answer Cards is also a legal way to go out and win, same as a single Answer Card.
 - If a player plays an Ace card, they can declare the suit that the next player must play. If they do not, the game continues as usual.
 - If a player realizes they can win on the next round of play, they must announce "Niko Kadi." Otherwise, they cannot win.
 - If the draw pile runs out of cards, the discard pile (excluding the top card) is shuffled to form the draw pile.
@@ -56,6 +56,6 @@ A player cannot win if any of the players is cardless.
 For a player to win, they must play all their winning cards in one move and, have had said “Niko Kadi” in the previous round. 
 
 The winning cards are:
--	Answer Cards
+-	Answer Cards — including several of the same rank played together (e.g. going out on three 5s at once).
 -	Question Cards followed by their matching answer cards, including a chain of several same-suit Question Cards closed by a single Answer Card, all played in the same move.
 

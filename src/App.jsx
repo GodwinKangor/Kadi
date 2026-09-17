@@ -245,6 +245,7 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
   const yourTurn = currentPlayer?.id === viewerId && !game.winner;
   const [selectedSuit, setSelectedSuit] = useState("hearts");
   const top = topCard(game);
+  const kadiEligible = yourTurn && Boolean(you) && you.hand.length <= 6 && !you.saidKadi;
 
   return (
     <main className="app-shell">
@@ -311,7 +312,12 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
               </button>
             ))}
           </div>
-          <button type="button" onClick={onKadi} disabled={!yourTurn || !you || you.hand.length > 6 || you.saidKadi}>
+          <button
+            type="button"
+            className={kadiEligible ? "kadi-nudge" : ""}
+            onClick={onKadi}
+            disabled={!yourTurn || !you || you.hand.length > 6 || you.saidKadi}
+          >
             Niko Kadi
           </button>
           <button type="button" onClick={onDraw} disabled={!yourTurn}>
