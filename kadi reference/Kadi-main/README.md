@@ -36,7 +36,7 @@ If one of these cards is drawn, the dealer returns it to the draw pile, shuffles
 - A Question Card must be answered in the same move as it is played, in one of two ways:
     - with another Question Card of the same suit, which itself then needs answering — so a player can chain through several same-suit Question Cards before closing the exchange, or
     - directly with an Answer Card of the same suit, which closes the exchange — an Ace does not count as an answer here (see the wild-card rules below), only 4, 5, 6, 7, 9, or 10.
-- Only the player who asked the question can answer it, in that same move. If they cannot close the exchange with a matching Answer Card (even after chaining through every same-suit Question Card they hold), none of the Question Cards are played — the asking player draws one card from the draw pile instead and their turn ends. Opponents are never penalised for someone else's unanswered question.
+- Only the player who asked the question can answer it, in that same move. If they cannot close the exchange with a matching Answer Card (even after chaining through every same-suit Question Card they hold), the Question Card they played still goes onto the discard pile unanswered — they just draw one extra card from the draw pile as the only consequence, and their turn ends. The unanswered Question Card sits on top for the next player like any other card. Opponents are never penalised for someone else's unanswered question.
 - Once a question exchange is resolved (or abandoned by drawing), play continues as normal from the next player, matching suit or rank against whatever card is now on top of the discard pile.
 - If a player plays a Jump Card, the next player is skipped. However, the player who was to play next can counter the move by playing their individual Jump Card, and the rules for Jump Cards apply based on this move.
 - If a player plays a Kickback Card, the game direction reverses. The player who was to play next can counter the move by playing their individual Kickback Card, and the rules for Kickback Cards apply based on the move made.
@@ -64,10 +64,10 @@ A play is illegal whenever it doesn't satisfy any of the legal-play conditions a
 
 Consequences differ slightly by case:
 - A straightforwardly illegal card (first bullet) or an unmatched pending penalty (second bullet): the card is **not played** — it's a one-card penalty draw for the player, and their turn ends.
-- An unanswerable Question Card (third bullet): none of the Question Cards are played either — same one-card penalty draw, turn ends, and the cards stay in the player's hand to try again another turn.
+- An unanswerable Question Card (third bullet): the Question Card played still goes onto the discard pile unanswered — same one-card penalty draw, turn ends, but the card itself is spent, not returned to hand.
 - An unmatched suit/rank lock (fourth bullet): also not played — same one-card penalty draw and turn ends.
 
-In every case, the attempted card(s) stay in the player's hand; only the single penalty card gets added.
+In every case except the unanswerable Question Card, the attempted card(s) stay in the player's hand and only the single penalty card gets added. An unanswerable Question Card is the one exception: the card the player attempted to play is legal against the pile (it matched), so it's still spent — it's only the missing answer that costs them the penalty draw.
 
 # Winning
 A player cannot win if any of the players is cardless.
