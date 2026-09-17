@@ -110,6 +110,15 @@ function suitRequirementDisplay(requirement) {
   return SUITS.find((suit) => suit.id === requirement) ?? SUIT_GROUPS.find((group) => group.id === requirement) ?? null;
 }
 
+const RED_SUIT_IDS = new Set(["hearts", "diamonds"]);
+const BLACK_SUIT_IDS = new Set(["spades", "clubs"]);
+
+function suitSatisfiesClient(cardSuit, requirement) {
+  if (requirement === "red") return RED_SUIT_IDS.has(cardSuit);
+  if (requirement === "black") return BLACK_SUIT_IDS.has(cardSuit);
+  return cardSuit === requirement;
+}
+
 // Lets a player type a declaration instead of clicking a button — "h",
 // "hearts", "red", etc. Prefix-matched, case-insensitive, first letter is
 // enough for every option since h/d/c/s/r/b are all distinct.
@@ -295,6 +304,16 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
   // The Ace of Spades is "special" alone; two or more Aces together (any
   // suits) carry the same suit+rank-lock power.
   const showRankPicker = aceCount >= 2 || hasAceOfSpades;
+  // The server only honors a rank lock backed by a card still in hand after
+  // the Ace(s) are played — so only offer ranks that would actually lock,
+  // rather than letting the player pick something that silently no-ops.
+  const acesBeingPlayed = aceCount >= 2
+    ? (you?.hand.filter((card) => card.rank === "A") ?? [])
+    : (you?.hand.filter((card) => card.id === "A-spades") ?? []);
+  const remainingHandForLock = you?.hand.filter((card) => !acesBeingPlayed.some((ace) => ace.id === card.id)) ?? [];
+  const lockableRanks = RANKS.filter((rank) =>
+    remainingHandForLock.some((card) => card.rank === rank && (!selectedSuit || suitSatisfiesClient(card.suit, selectedSuit))),
+  );
 
   return (
     <main className="app-shell">
@@ -399,16 +418,20 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
           {showRankPicker && (
             <label className="field rank-picker" aria-label="Special Ace: also declare a rank">
               <span>+ Rank ({aceCount >= 2 ? `${aceCount} Aces` : "Ace of Spades"})</span>
-              <select value={selectedRank ?? ""} onChange={(event) => setSelectedRank(event.target.value)}>
-                <option value="" disabled>
-                  Pick a rank...
-                </option>
-                {RANKS.map((rank) => (
-                  <option key={rank} value={rank}>
-                    {rank}
+              {lockableRanks.length > 0 ? (
+                <select value={selectedRank ?? ""} onChange={(event) => setSelectedRank(event.target.value)}>
+                  <option value="" disabled>
+                    Pick a rank you hold...
                   </option>
-                ))}
-              </select>
+                  {lockableRanks.map((rank) => (
+                    <option key={rank} value={rank}>
+                      {rank}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <em>No card left in hand to back a rank lock — this will only lock the suit.</em>
+              )}
             </label>
           )}
           <button
