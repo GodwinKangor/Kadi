@@ -1,6 +1,47 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
 
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || undefined;
+const TOKEN_KEY = "kadi:token";
+const SESSION_KEY = "kadi:session";
+
+function getPlayerToken() {
+  try {
+    let token = window.localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      token = window.crypto?.randomUUID ? window.crypto.randomUUID() : `p-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      window.localStorage.setItem(TOKEN_KEY, token);
+    }
+    return token;
+  } catch {
+    return `p-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
+function getSession() {
+  try {
+    return JSON.parse(window.localStorage.getItem(SESSION_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function saveSession(roomCode, name) {
+  try {
+    window.localStorage.setItem(SESSION_KEY, JSON.stringify({ roomCode, name }));
+  } catch {
+    // ignore storage failures (private browsing, quota, etc.)
+  }
+}
+
+function clearSession() {
+  try {
+    window.localStorage.removeItem(SESSION_KEY);
+  } catch {
+    // ignore storage failures
+  }
+}
+
 const SUITS = [
   { id: "hearts", label: "Hearts", icon: "♥", color: "red" },
   { id: "diamonds", label: "Diamonds", icon: "♦", color: "red" },
@@ -71,7 +112,7 @@ function Opponent({ player, active }) {
     <section className={`opponent ${active ? "active" : ""}`} aria-label={`${player.name} status`}>
       <div>
         <strong>{player.name}</strong>
-        <span>{player.saidKadi ? "Niko Kadi" : "Waiting"}</span>
+        <span>{player.connected === false ? "Reconnecting…" : player.saidKadi ? "Niko Kadi" : "Waiting"}</span>
       </div>
       <div className="mini-hand" aria-label={`${player.hand.length} cards`}>
         {player.hand.slice(0, 8).map((card) => (
@@ -161,7 +202,9 @@ function LobbyScreen({ room, viewerId, onStart, onLeave }) {
           {room.players.map((player) => (
             <div className="player-row" key={player.id}>
               <strong>{player.name}</strong>
-              <span>{player.id === room.hostId ? "Host" : "Joined"}</span>
+              <span>
+                {player.connected === false ? "Reconnecting…" : player.id === room.hostId ? "Host" : "Joined"}
+              </span>
             </div>
           ))}
         </div>
@@ -309,12 +352,22 @@ export default function App() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const socket = io();
+    const token = getPlayerToken();
+    const socket = io(SERVER_URL);
     socketRef.current = socket;
 
     socket.on("connect", () => {
       setConnected(true);
-      setViewerId(socket.id);
+      setViewerId(token);
+
+      const session = getSession();
+      const target = session?.roomCode || initialRoomCode;
+      const resuming = Boolean(session?.roomCode) && (!initialRoomCode || initialRoomCode === session.roomCode);
+      if (resuming && target) {
+        socket.emit("room:join", { roomCode: target, name: session.name, token }, (reply) => {
+          if (!reply?.ok) clearSession();
+        });
+      }
     });
     socket.on("disconnect", () => setConnected(false));
     socket.on("room:update", (nextRoom) => {
@@ -331,27 +384,30 @@ export default function App() {
 
   function createRoom(name) {
     setError("");
-    socketRef.current?.emit("room:create", { name }, (reply) => {
+    socketRef.current?.emit("room:create", { name, token: getPlayerToken() }, (reply) => {
       if (!reply?.ok) {
         setError(reply?.error || "Could not create room.");
         return;
       }
       window.history.replaceState(null, "", `/room/${reply.roomCode}`);
+      saveSession(reply.roomCode, name);
     });
   }
 
   function joinRoom(roomCode, name) {
     setError("");
-    socketRef.current?.emit("room:join", { roomCode, name }, (reply) => {
+    socketRef.current?.emit("room:join", { roomCode, name, token: getPlayerToken() }, (reply) => {
       if (!reply?.ok) {
         setError(reply?.error || "Could not join room.");
         return;
       }
       window.history.replaceState(null, "", `/room/${reply.roomCode}`);
+      saveSession(reply.roomCode, name);
     });
   }
 
   function leaveRoom() {
+    clearSession();
     window.location.href = "/";
   }
 

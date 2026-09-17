@@ -6,6 +6,8 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 * {
@@ -15,11 +17,13 @@
 body {
   margin: 0;
   min-width: 320px;
+  overscroll-behavior-y: contain;
 }
 
 button {
   border: 0;
   font: inherit;
+  touch-action: manipulation;
 }
 
 .boot-error {
@@ -584,7 +588,7 @@ button {
 
   .topbar {
     position: sticky;
-    top: 0;
+    top: env(safe-area-inset-top, 0px);
     z-index: 2;
     min-height: 58px;
     padding: 8px 0;

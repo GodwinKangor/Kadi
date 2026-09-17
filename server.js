@@ -6,6 +6,9 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 4173;
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "*";
+const RECONNECT_GRACE_MS = 45_000;
+const AUTO_SKIP_MS = 20_000;
 
 const SUITS = [
   { id: "hearts", label: "Hearts", icon: "♥", color: "red" },
@@ -59,6 +62,11 @@ function cleanName(name, fallback) {
   return String(name || "").trim().slice(0, 18) || fallback;
 }
 
+function cleanToken(token) {
+  const value = String(token || "").trim().slice(0, 64);
+  return value || crypto.randomUUID();
+}
+
 function cardName(card) {
   if (!card) return "";
   if (card.rank === "JOK") return "Joker";
@@ -69,7 +77,7 @@ function cardName(card) {
 function buildGame(players) {
   let deck = shuffle(createDeck());
   const gamePlayers = players.map((player) => ({
-    id: player.id,
+    id: player.token,
     name: player.name,
     hand: [],
     saidKadi: false,
@@ -109,8 +117,17 @@ function topCard(game) {
   return game.discardPile[game.discardPile.length - 1];
 }
 
+// Jokers have no real suit, so once one is on top, suit/rank matching must
+// fall back to the last non-Joker card underneath the penalty chain.
+function referenceCard(game) {
+  for (let i = game.discardPile.length - 1; i >= 0; i -= 1) {
+    if (game.discardPile[i].rank !== "JOK") return game.discardPile[i];
+  }
+  return topCard(game);
+}
+
 function activeSuit(game) {
-  return game.declaredSuit ?? topCard(game).suit;
+  return game.declaredSuit ?? referenceCard(game).suit;
 }
 
 function canPlay(card, game) {
@@ -240,6 +257,7 @@ function applyCard(game, playerId, cardIndex, declaredSuit) {
 function makeSnapshot(room, viewerId) {
   const game = room.game;
   const viewerIndex = game.players.findIndex((player) => player.id === viewerId);
+  const connectedByToken = new Map(room.players.map((player) => [player.token, player.connected]));
 
   return {
     roomCode: room.code,
@@ -250,6 +268,7 @@ function makeSnapshot(room, viewerId) {
       id: player.id,
       name: player.name,
       saidKadi: player.saidKadi,
+      connected: connectedByToken.get(player.id) ?? false,
       hand: player.id === viewerId
         ? player.hand
         : Array.from({ length: player.hand.length }, (_, index) => ({ id: `${player.id}-hidden-${index}` })),
@@ -266,43 +285,121 @@ function makeSnapshot(room, viewerId) {
   };
 }
 
+// If the player whose turn it is has gone quiet (backgrounded tab, dropped
+// signal), auto-draw for them after a grace period so the table isn't stuck.
+function scheduleAutoSkip(room) {
+  if (room.autoSkipTimer) return;
+  const game = room.game;
+  if (!game || game.winner) return;
+
+  const currentToken = game.players[game.currentPlayer]?.id;
+  const roomPlayer = room.players.find((player) => player.token === currentToken);
+  if (roomPlayer && roomPlayer.connected !== false) return;
+
+  room.autoSkipTimer = setTimeout(() => {
+    room.autoSkipTimer = null;
+    const g = room.game;
+    if (!g || g.winner) return;
+
+    const stillCurrent = g.players[g.currentPlayer]?.id === currentToken;
+    const rp = room.players.find((player) => player.token === currentToken);
+    const stillDisconnected = !rp || rp.connected === false;
+
+    if (stillCurrent && stillDisconnected) {
+      const count = g.pendingPenalty || 1;
+      drawCards(g, g.currentPlayer, count);
+      g.pendingPenalty = 0;
+      g.message = `${g.players[g.currentPlayer].name} was away and picked ${count > 1 ? `${count} penalty cards` : "a card"}.`;
+      g.log = [g.message, ...g.log].slice(0, 8);
+      g.currentPlayer = nextIndex(g.currentPlayer, g.direction, g.players.length);
+    }
+
+    emitRoom(room);
+  }, AUTO_SKIP_MS);
+}
+
 function emitRoom(room) {
   io.to(room.code).emit("room:update", {
     roomCode: room.code,
     hostId: room.hostId,
     status: room.status,
-    players: room.players,
+    players: room.players.map((player) => ({
+      id: player.token,
+      name: player.name,
+      connected: player.connected,
+    })),
   });
 
   if (room.game) {
     room.players.forEach((player) => {
-      io.to(player.id).emit("game:update", makeSnapshot(room, player.id));
+      if (!player.connected) return;
+      io.to(player.socketId).emit("game:update", makeSnapshot(room, player.token));
     });
+    scheduleAutoSkip(room);
   }
+}
+
+function removePlayer(room, token) {
+  const index = room.players.findIndex((player) => player.token === token);
+  if (index === -1) return;
+
+  room.players.splice(index, 1);
+  if (room.players.length === 0) {
+    rooms.delete(room.code);
+    return;
+  }
+
+  if (room.hostId === token) {
+    room.hostId = room.players[0].token;
+  }
+
+  emitRoom(room);
 }
 
 const app = express();
 const server = createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, { cors: { origin: ALLOWED_ORIGIN } });
 
 app.use(express.static(path.join(__dirname, "dist")));
 
 io.on("connection", (socket) => {
-  socket.on("room:create", ({ name }, reply) => {
+  socket.on("room:create", ({ name, token }, reply) => {
+    const playerToken = cleanToken(token);
     const code = makeRoomCode();
-    const player = { id: socket.id, name: cleanName(name, "Host") };
-    const room = { code, hostId: socket.id, status: "lobby", players: [player], game: null };
+    const player = { token: playerToken, name: cleanName(name, "Host"), socketId: socket.id, connected: true, disconnectTimer: null };
+    const room = { code, hostId: playerToken, status: "lobby", players: [player], game: null, autoSkipTimer: null };
     rooms.set(code, room);
+    socket.data.token = playerToken;
+    socket.data.roomCode = code;
     socket.join(code);
-    reply?.({ ok: true, roomCode: code, playerId: socket.id });
+    reply?.({ ok: true, roomCode: code, token: playerToken });
     emitRoom(room);
   });
 
-  socket.on("room:join", ({ roomCode, name }, reply) => {
+  socket.on("room:join", ({ roomCode, name, token }, reply) => {
     const code = String(roomCode || "").trim().toUpperCase();
     const room = rooms.get(code);
     if (!room) {
       reply?.({ ok: false, error: "Room not found." });
+      return;
+    }
+
+    const playerToken = cleanToken(token);
+    const existing = room.players.find((player) => player.token === playerToken);
+
+    if (existing) {
+      if (existing.disconnectTimer) {
+        clearTimeout(existing.disconnectTimer);
+        existing.disconnectTimer = null;
+      }
+      existing.socketId = socket.id;
+      existing.connected = true;
+      if (name) existing.name = cleanName(name, existing.name);
+      socket.data.token = playerToken;
+      socket.data.roomCode = code;
+      socket.join(code);
+      reply?.({ ok: true, roomCode: code, token: playerToken });
+      emitRoom(room);
       return;
     }
 
@@ -316,16 +413,24 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const player = { id: socket.id, name: cleanName(name, `Player ${room.players.length + 1}`) };
+    const player = {
+      token: playerToken,
+      name: cleanName(name, `Player ${room.players.length + 1}`),
+      socketId: socket.id,
+      connected: true,
+      disconnectTimer: null,
+    };
     room.players.push(player);
+    socket.data.token = playerToken;
+    socket.data.roomCode = code;
     socket.join(code);
-    reply?.({ ok: true, roomCode: code, playerId: socket.id });
+    reply?.({ ok: true, roomCode: code, token: playerToken });
     emitRoom(room);
   });
 
   socket.on("room:start", ({ roomCode }) => {
     const room = rooms.get(String(roomCode || "").toUpperCase());
-    if (!room || room.hostId !== socket.id || room.players.length < 2) return;
+    if (!room || room.hostId !== socket.data.token || room.players.length < 2) return;
     room.status = "playing";
     room.game = buildGame(room.players);
     emitRoom(room);
@@ -334,14 +439,14 @@ io.on("connection", (socket) => {
   socket.on("game:play", ({ roomCode, cardIndex, declaredSuit }) => {
     const room = rooms.get(String(roomCode || "").toUpperCase());
     if (!room?.game) return;
-    applyCard(room.game, socket.id, cardIndex, declaredSuit);
+    applyCard(room.game, socket.data.token, cardIndex, declaredSuit);
     emitRoom(room);
   });
 
   socket.on("game:draw", ({ roomCode }) => {
     const room = rooms.get(String(roomCode || "").toUpperCase());
     const game = room?.game;
-    if (!game || game.players[game.currentPlayer]?.id !== socket.id || game.winner) return;
+    if (!game || game.players[game.currentPlayer]?.id !== socket.data.token || game.winner) return;
 
     const count = game.pendingPenalty || 1;
     drawCards(game, game.currentPlayer, count);
@@ -355,7 +460,7 @@ io.on("connection", (socket) => {
   socket.on("game:kadi", ({ roomCode }) => {
     const room = rooms.get(String(roomCode || "").toUpperCase());
     const game = room?.game;
-    if (!game || game.players[game.currentPlayer]?.id !== socket.id || game.winner) return;
+    if (!game || game.players[game.currentPlayer]?.id !== socket.data.token || game.winner) return;
     game.players[game.currentPlayer].saidKadi = true;
     game.message = `${game.players[game.currentPlayer].name} said Niko Kadi.`;
     game.log = [game.message, ...game.log].slice(0, 8);
@@ -364,31 +469,32 @@ io.on("connection", (socket) => {
 
   socket.on("game:restart", ({ roomCode }) => {
     const room = rooms.get(String(roomCode || "").toUpperCase());
-    if (!room || room.hostId !== socket.id) return;
+    if (!room) return;
+    const isHost = room.hostId === socket.data.token;
+    const isPostGame = Boolean(room.game?.winner);
+    if (!isHost && !isPostGame) return;
     room.status = "lobby";
     room.game = null;
     emitRoom(room);
   });
 
   socket.on("disconnect", () => {
-    rooms.forEach((room, code) => {
-      const index = room.players.findIndex((player) => player.id === socket.id);
-      if (index === -1) return;
+    const code = socket.data.roomCode;
+    const token = socket.data.token;
+    if (!code || !token) return;
 
-      room.players.splice(index, 1);
-      if (room.players.length === 0) {
-        rooms.delete(code);
-        return;
-      }
+    const room = rooms.get(code);
+    if (!room) return;
 
-      if (room.hostId === socket.id) {
-        room.hostId = room.players[0].id;
-      }
+    const player = room.players.find((item) => item.token === token);
+    if (!player || player.socketId !== socket.id) return;
 
-      if (room.status === "lobby") {
-        emitRoom(room);
-      }
-    });
+    player.connected = false;
+    emitRoom(room);
+
+    player.disconnectTimer = setTimeout(() => {
+      removePlayer(room, token);
+    }, RECONNECT_GRACE_MS);
   });
 });
 

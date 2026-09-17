@@ -4,3 +4,6 @@ services:
     runtime: node
     buildCommand: npm ci && npm run build
     startCommand: npm start
+    envVars:
+      - key: ALLOWED_ORIGIN
+        value: "*"
