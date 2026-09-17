@@ -129,9 +129,16 @@ function normalizeSuitInput(text) {
   return match?.id ?? null;
 }
 
-function Card({ card, hidden = false, disabled = false, onClick }) {
+function Card({ card, hidden = false, disabled = false, selected = false, selectable = false, onClick }) {
   const suit = cardSuit(card);
-  const className = ["card", suit?.color === "red" ? "red" : "black", hidden ? "hidden" : "", disabled ? "disabled" : ""]
+  const className = [
+    "card",
+    suit?.color === "red" ? "red" : "black",
+    hidden ? "hidden" : "",
+    disabled ? "disabled" : "",
+    selected ? "selected" : "",
+    selectable ? "selectable" : "",
+  ]
     .filter(Boolean)
     .join(" ");
 
@@ -288,29 +295,67 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
     if (match) setSelectedSuit(match);
   }
 
-  function playCard(index) {
-    onPlay(index, selectedSuit, selectedRank);
+  // Cards the player has picked for this move — lets them choose whether to
+  // follow with other same-rank cards or not, rather than always sweeping
+  // every matching card into the play automatically.
+  const [selection, setSelection] = useState([]);
+
+  // Leaving your own turn (played, drew, got auto-skipped, ...) always
+  // clears any half-made selection so it can't linger stale into a future
+  // turn.
+  useEffect(() => {
+    if (!yourTurn) setSelection([]);
+  }, [yourTurn]);
+
+  function playCards(ids) {
+    const indices = ids.map((id) => you.hand.findIndex((c) => c.id === id)).filter((index) => index !== -1);
+    if (indices.length === 0) return;
+    onPlay(indices, selectedSuit, selectedRank);
+    setSelection([]);
     setSelectedSuit(null);
     setSelectedRank(null);
     setSuitText("");
   }
+
+  function toggleCard(card) {
+    // Question cards auto-chain server-side regardless of what else is
+    // selected, so there's nothing to choose between — just play it.
+    if (QUESTIONS.has(card.rank)) {
+      playCards([card.id]);
+      return;
+    }
+
+    const anchor = selection[0] ? you.hand.find((c) => c.id === selection[0]) : null;
+    if (anchor && anchor.rank === card.rank) {
+      setSelection((current) => (current.includes(card.id) ? current.filter((id) => id !== card.id) : [...current, card.id]));
+      return;
+    }
+
+    const siblingCount = you.hand.filter((c) => c.rank === card.rank).length;
+    if (siblingCount <= 1) {
+      playCards([card.id]); // nothing to choose between - just play it
+    } else {
+      setSelection([card.id]); // has same-rank siblings - offer the choice
+    }
+  }
+
   const top = topCard(game);
   // The declare window is open on the *next* player's turn, right after you
   // played the card that leaves you one move from winning — not your own
   // turn, since by then play has already moved on.
   const canDeclareKadi = Boolean(you) && game.kadiWindowHolderId === viewerId && !you.saidKadi && !game.winner;
-  const aceCount = you?.hand.filter((card) => card.rank === "A").length ?? 0;
-  const hasAceOfSpades = you?.hand.some((card) => card.id === "A-spades") ?? false;
-  // The Ace of Spades is "special" alone; two or more Aces together (any
-  // suits) carry the same suit+rank-lock power.
-  const showRankPicker = aceCount >= 2 || hasAceOfSpades;
+
+  // Driven by what's actually selected right now, not a hypothetical — the
+  // Ace of Spades is special alone, two-or-more Aces together carry the
+  // same suit+rank-lock power, and it's the player's own choice which of
+  // those they've committed to for this move.
+  const selectedCards = selection.map((id) => you?.hand.find((card) => card.id === id)).filter(Boolean);
+  const isAceSelection = selectedCards.length > 0 && selectedCards.every((card) => card.rank === "A");
+  const showRankPicker = isAceSelection && (selectedCards.length >= 2 || selectedCards.some((card) => card.id === "A-spades"));
   // The server only honors a rank lock backed by a card still in hand after
   // the Ace(s) are played — so only offer ranks that would actually lock,
   // rather than letting the player pick something that silently no-ops.
-  const acesBeingPlayed = aceCount >= 2
-    ? (you?.hand.filter((card) => card.rank === "A") ?? [])
-    : (you?.hand.filter((card) => card.id === "A-spades") ?? []);
-  const remainingHandForLock = you?.hand.filter((card) => !acesBeingPlayed.some((ace) => ace.id === card.id)) ?? [];
+  const remainingHandForLock = you?.hand.filter((card) => !selection.includes(card.id)) ?? [];
   const lockableRanks = RANKS.filter((rank) =>
     remainingHandForLock.some((card) => card.rank === rank && (!selectedSuit || suitSatisfiesClient(card.suit, selectedSuit))),
   );
@@ -417,7 +462,7 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
           </label>
           {showRankPicker && (
             <label className="field rank-picker" aria-label="Special Ace: also declare a rank">
-              <span>+ Rank ({aceCount >= 2 ? `${aceCount} Aces` : "Ace of Spades"})</span>
+              <span>+ Rank ({selectedCards.length >= 2 ? `${selectedCards.length} Aces` : "Ace of Spades"})</span>
               {lockableRanks.length > 0 ? (
                 <select value={selectedRank ?? ""} onChange={(event) => setSelectedRank(event.target.value)}>
                   <option value="" disabled>
@@ -445,6 +490,11 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
           <button type="button" onClick={onDraw} disabled={!yourTurn}>
             {game.pendingPenalty ? `Pick ${game.pendingPenalty}` : "Pick"}
           </button>
+          {selection.length > 0 && (
+            <button type="button" className="play-confirm" onClick={() => playCards(selection)}>
+              Play {selection.length}
+            </button>
+          )}
         </section>
 
         <section className="hand-section" aria-label="Your hand">
@@ -452,9 +502,21 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
             <strong>{you?.name ?? "Your"} hand</strong>
             <span>{you?.hand.length ?? 0} cards</span>
           </div>
+          {selection.length > 0 && (
+            <p className="connection-note">
+              {selection.length} card{selection.length > 1 ? "s" : ""} selected — tap another matching card to add it, tap "Play" to confirm, or tap a selected card again to remove it.
+            </p>
+          )}
           <div className="hand">
-            {you?.hand.map((card, index) => (
-              <Card key={card.id} card={card} disabled={!yourTurn} onClick={() => playCard(index)} />
+            {you?.hand.map((card) => (
+              <Card
+                key={card.id}
+                card={card}
+                disabled={!yourTurn}
+                selected={selection.includes(card.id)}
+                selectable={selection.length > 0 && !selection.includes(card.id) && you.hand.find((c) => c.id === selection[0])?.rank === card.rank}
+                onClick={() => toggleCard(card)}
+              />
             ))}
           </div>
         </section>
@@ -586,7 +648,7 @@ export default function App() {
       <GameScreen
         game={game}
         viewerId={token}
-        onPlay={(cardIndex, declaredSuit, declaredRank) => sendAction("play", { cardIndex, declaredSuit, declaredRank })}
+        onPlay={(cardIndices, declaredSuit, declaredRank) => sendAction("play", { cardIndices, declaredSuit, declaredRank })}
         onDraw={() => sendAction("draw", {})}
         onKadi={() => sendAction("kadi", {})}
         onRestart={() => sendAction("restart", {})}

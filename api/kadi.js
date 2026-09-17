@@ -166,7 +166,10 @@ const handleStart = withPresence((room, token) => {
 
 const handlePlay = withPresence((room, token, body) => {
   if (!room.game) return { error: "Game hasn't started." };
-  applyCard(room.game, token, Number(body.cardIndex), body.declaredSuit, body.declaredRank);
+  const indices = Array.isArray(body.cardIndices)
+    ? body.cardIndices.map(Number)
+    : [Number(body.cardIndex)];
+  applyCard(room.game, token, indices, body.declaredSuit, body.declaredRank);
 });
 
 const handleDraw = withPresence((room, token) => {

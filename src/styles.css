@@ -402,6 +402,15 @@ button {
   opacity: 0.58;
 }
 
+.card.selected {
+  box-shadow: inset 0 0 0 3px #f0c75e, 0 12px 24px rgba(42, 54, 78, 0.16);
+  transform: translateY(-4px);
+}
+
+.card.selectable {
+  box-shadow: inset 0 0 0 2px #1b5f73, 0 12px 24px rgba(42, 54, 78, 0.16);
+}
+
 .card.hidden {
   place-items: center;
   background:
@@ -478,6 +487,11 @@ button {
 .controls button:disabled {
   cursor: not-allowed;
   opacity: 0.44;
+}
+
+.play-confirm {
+  background: #1b5f73;
+  grid-column: 1 / -1;
 }
 
 @keyframes kadi-nudge-pulse {
