@@ -332,10 +332,13 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
     }
 
     const siblingCount = you.hand.filter((c) => c.rank === card.rank).length;
-    if (siblingCount <= 1) {
-      playCards([card.id]); // nothing to choose between - just play it
+    if (card.rank !== "A" && siblingCount <= 1) {
+      playCards([card.id]); // nothing to decide - no suit to pick, no siblings to add - just play it
     } else {
-      setSelection([card.id]); // has same-rank siblings - offer the choice
+      // Aces always pause here even solo, so there's a chance to pick a
+      // suit (and rank, for the Ace of Spades) before the play goes out;
+      // same-rank sets pause so the player can choose how many to include.
+      setSelection([card.id]);
     }
   }
 
