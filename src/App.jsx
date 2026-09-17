@@ -477,6 +477,24 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
               maxLength={20}
             />
           </label>
+          <label className="field suit-dropdown" aria-label="Or pick a suit declaration from a list">
+            <span>Or pick from a list</span>
+            <select
+              value={selectedSuit ?? ""}
+              onChange={(event) => {
+                const value = event.target.value || null;
+                setSelectedSuit(value);
+                setSuitText(value ? suitRequirementDisplay(value)?.label ?? value : "");
+              }}
+            >
+              <option value="">No declaration (defaults to the card's suit)</option>
+              {[...SUITS, ...SUIT_GROUPS].map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
           {showRankPicker && (
             <label className="field rank-picker" aria-label="Special Ace: also declare a rank">
               <span>+ Rank ({selectedCards.length >= 2 ? `${selectedCards.length} Aces` : "Ace of Spades"})</span>

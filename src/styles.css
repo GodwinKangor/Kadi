@@ -540,12 +540,25 @@ button {
 }
 
 .suit-text,
+.suit-dropdown,
 .rank-picker {
   grid-column: 1 / -1;
 }
 
 .suit-text input {
   min-height: 40px;
+}
+
+.suit-dropdown select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid rgba(23, 32, 51, 0.16);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #fffdf8;
+  color: #172033;
+  font: inherit;
+  font-weight: 750;
 }
 
 .rank-picker select {
