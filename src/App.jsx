@@ -64,6 +64,7 @@ const SUITS = [
 
 const QUESTIONS = new Set(["8", "Q"]);
 const ANSWERS = new Set(["A", "4", "5", "6", "7", "9", "10"]);
+const QUESTION_CLOSING_RANKS = new Set(["4", "5", "6", "7", "9", "10"]);
 const PENALTY_DRAW = { 2: 2, 3: 3, JOK: 5 };
 const RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
 
@@ -317,17 +318,30 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
     setSuitText("");
   }
 
+  // Whether `card` can be added to a same-rank set (anchor is a plain card)
+  // or a Question chain (anchor is a Question card — everything must share
+  // its suit, and be either another Question or a valid closing Answer).
+  function matchesSelectionMode(anchor, card) {
+    if (QUESTIONS.has(anchor.rank)) {
+      return card.suit === anchor.suit && (QUESTIONS.has(card.rank) || QUESTION_CLOSING_RANKS.has(card.rank));
+    }
+    return anchor.rank === card.rank;
+  }
+
   function toggleCard(card) {
-    // Question cards auto-chain server-side regardless of what else is
-    // selected, so there's nothing to choose between — just play it.
-    if (QUESTIONS.has(card.rank)) {
-      playCards([card.id]);
+    const anchor = selection[0] ? you.hand.find((c) => c.id === selection[0]) : null;
+    if (anchor && matchesSelectionMode(anchor, card)) {
+      setSelection((current) => (current.includes(card.id) ? current.filter((id) => id !== card.id) : [...current, card.id]));
       return;
     }
 
-    const anchor = selection[0] ? you.hand.find((c) => c.id === selection[0]) : null;
-    if (anchor && anchor.rank === card.rank) {
-      setSelection((current) => (current.includes(card.id) ? current.filter((id) => id !== card.id) : [...current, card.id]));
+    if (QUESTIONS.has(card.rank)) {
+      const candidateCount = you.hand.filter((c) => c.id !== card.id && matchesSelectionMode(card, c)).length;
+      if (candidateCount === 0) {
+        playCards([card.id]); // nothing to build a chain from - let auto-resolve draw if it truly has no answer
+      } else {
+        setSelection([card.id]); // has same-suit candidates - offer the choice of chain + closer
+      }
       return;
     }
 
@@ -517,7 +531,11 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
                 card={card}
                 disabled={!yourTurn}
                 selected={selection.includes(card.id)}
-                selectable={selection.length > 0 && !selection.includes(card.id) && you.hand.find((c) => c.id === selection[0])?.rank === card.rank}
+                selectable={(() => {
+                  if (selection.length === 0 || selection.includes(card.id)) return false;
+                  const anchor = you.hand.find((c) => c.id === selection[0]);
+                  return Boolean(anchor) && matchesSelectionMode(anchor, card);
+                })()}
                 onClick={() => toggleCard(card)}
               />
             ))}
