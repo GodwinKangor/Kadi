@@ -75,6 +75,7 @@ A player cannot win if any of the players is cardless.
 For a player to win, they must play all their winning cards in one move and, have had said “Niko Kadi” in the previous round. 
 
 The winning cards are:
--	Answer Cards — including several of the same rank played together (e.g. going out on three 5s at once).
--	Question Cards followed by their matching answer cards, including a chain of several same-suit Question Cards closed by a single Answer Card, all played in the same move.
+-	Answer Cards **except Aces** — 4, 5, 6, 7, 9, or 10, including several of the same rank played together (e.g. going out on three 5s at once). Aces are wild/utility cards now (always playable, can lock a suit and rank), not a legitimate way to close out a win — playing an Ace (alone or in bulk with other Aces) as your last card(s) does not win, even with "Niko Kadi" already said; the cards go back to your hand and play continues.
+-	Question Cards followed by their matching answer cards, including a chain of several same-suit Question Cards closed by a single Answer Card (an Ace is still fine *as the closing answer inside a chain* — only a bare/bulk Ace play by itself can't win), all played in the same move.
+-	Jump, Kickback, and Penalty Cards (J, K, 2, 3, Joker) are never winning cards on their own, played singly or in bulk.
 

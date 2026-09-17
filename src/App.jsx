@@ -264,14 +264,26 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
   const currentPlayer = game.players[game.currentPlayer];
   const currentSuit = suitRequirementDisplay(activeSuit(game));
   const yourTurn = currentPlayer?.id === viewerId && !game.winner;
-  const [selectedSuit, setSelectedSuit] = useState("hearts");
-  const [selectedRank, setSelectedRank] = useState("2");
+  // null = no explicit declaration made this turn. The server already
+  // falls back to the played Ace's own suit / no rank lock when nothing
+  // valid is sent, so we must NOT carry a stale pick (e.g. "hearts" left
+  // over from an earlier turn) into a play where the player never touched
+  // the picker — that would silently override the card's own suit.
+  const [selectedSuit, setSelectedSuit] = useState(null);
+  const [selectedRank, setSelectedRank] = useState(null);
   const [suitText, setSuitText] = useState("");
 
   function handleSuitTextChange(value) {
     setSuitText(value);
     const match = normalizeSuitInput(value);
     if (match) setSelectedSuit(match);
+  }
+
+  function playCard(index) {
+    onPlay(index, selectedSuit, selectedRank);
+    setSelectedSuit(null);
+    setSelectedRank(null);
+    setSuitText("");
   }
   const top = topCard(game);
   // The declare window is open on the *next* player's turn, right after you
@@ -374,7 +386,9 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
             ))}
           </div>
           <label className="field suit-text" aria-label="Or type a suit declaration">
-            <span>Or type it — declaring {suitRequirementDisplay(selectedSuit)?.label ?? selectedSuit}</span>
+            <span>
+              Or type it — {selectedSuit ? `declaring ${suitRequirementDisplay(selectedSuit)?.label ?? selectedSuit}` : "no suit declared (defaults to the card's own suit)"}
+            </span>
             <input
               value={suitText}
               onChange={(event) => handleSuitTextChange(event.target.value)}
@@ -385,7 +399,10 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
           {showRankPicker && (
             <label className="field rank-picker" aria-label="Special Ace: also declare a rank">
               <span>+ Rank ({aceCount >= 2 ? `${aceCount} Aces` : "Ace of Spades"})</span>
-              <select value={selectedRank} onChange={(event) => setSelectedRank(event.target.value)}>
+              <select value={selectedRank ?? ""} onChange={(event) => setSelectedRank(event.target.value)}>
+                <option value="" disabled>
+                  Pick a rank...
+                </option>
                 {RANKS.map((rank) => (
                   <option key={rank} value={rank}>
                     {rank}
@@ -414,7 +431,7 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
           </div>
           <div className="hand">
             {you?.hand.map((card, index) => (
-              <Card key={card.id} card={card} disabled={!yourTurn} onClick={() => onPlay(index, selectedSuit, selectedRank)} />
+              <Card key={card.id} card={card} disabled={!yourTurn} onClick={() => playCard(index)} />
             ))}
           </div>
         </section>
