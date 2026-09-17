@@ -1,9 +1,22 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { io } from "socket.io-client";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || undefined;
+const API_URL = "/api/kadi";
+const POLL_MS = 1500;
 const TOKEN_KEY = "kadi:token";
 const SESSION_KEY = "kadi:session";
+
+async function callApi(action, payload) {
+  const response = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, ...payload }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.ok === false) {
+    throw new Error(data?.error || "Request failed.");
+  }
+  return data;
+}
 
 function getPlayerToken() {
   try {
@@ -124,7 +137,7 @@ function Opponent({ player, active }) {
   );
 }
 
-function SetupScreen({ connected, error, initialRoomCode, onCreate, onJoin }) {
+function SetupScreen({ submitting, error, initialRoomCode, onCreate, onJoin }) {
   const [name, setName] = useState("");
   const [roomCode, setRoomCode] = useState(initialRoomCode);
   const hasInvite = Boolean(initialRoomCode);
@@ -144,7 +157,7 @@ function SetupScreen({ connected, error, initialRoomCode, onCreate, onJoin }) {
 
         <div className="room-actions">
           {!hasInvite && (
-            <button className="start-button" type="button" disabled={!connected} onClick={() => onCreate(name)}>
+            <button className="start-button" type="button" disabled={submitting} onClick={() => onCreate(name)}>
               Create room
             </button>
           )}
@@ -159,12 +172,11 @@ function SetupScreen({ connected, error, initialRoomCode, onCreate, onJoin }) {
             />
           </label>
 
-          <button className="start-button secondary" type="button" disabled={!connected || !roomCode.trim()} onClick={() => onJoin(roomCode, name)}>
+          <button className="start-button secondary" type="button" disabled={submitting || !roomCode.trim()} onClick={() => onJoin(roomCode, name)}>
             Join room
           </button>
         </div>
 
-        <p className="connection-note">{connected ? "Connected to room server." : "Connecting to room server..."}</p>
         {error && <p className="error-note">{error}</p>}
       </section>
     </main>
@@ -344,66 +356,87 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
 
 export default function App() {
   const initialRoomCode = useMemo(() => getInitialRoomCode(), []);
-  const socketRef = useRef(null);
-  const [connected, setConnected] = useState(false);
-  const [viewerId, setViewerId] = useState("");
+  const token = useMemo(() => getPlayerToken(), []);
+  const [submitting, setSubmitting] = useState(false);
+  const [roomCode, setRoomCode] = useState(() => {
+    const session = getSession();
+    const resuming = Boolean(session?.roomCode) && (!initialRoomCode || initialRoomCode === session.roomCode);
+    return resuming ? session.roomCode : "";
+  });
   const [room, setRoom] = useState(null);
   const [game, setGame] = useState(null);
   const [error, setError] = useState("");
+  const nameRef = useRef(getSession()?.name || "");
 
-  useEffect(() => {
-    const token = getPlayerToken();
-    const socket = io(SERVER_URL);
-    socketRef.current = socket;
-
-    socket.on("connect", () => {
-      setConnected(true);
-      setViewerId(token);
-
-      const session = getSession();
-      const target = session?.roomCode || initialRoomCode;
-      const resuming = Boolean(session?.roomCode) && (!initialRoomCode || initialRoomCode === session.roomCode);
-      if (resuming && target) {
-        socket.emit("room:join", { roomCode: target, name: session.name, token }, (reply) => {
-          if (!reply?.ok) clearSession();
-        });
-      }
-    });
-    socket.on("disconnect", () => setConnected(false));
-    socket.on("room:update", (nextRoom) => {
-      setRoom(nextRoom);
-      if (nextRoom.status === "lobby") setGame(null);
-    });
-    socket.on("game:update", (nextGame) => {
-      setGame(nextGame);
-      setRoom((current) => current ? { ...current, status: "playing" } : current);
-    });
-
-    return () => socket.disconnect();
+  const applySnapshot = useCallback((data) => {
+    setRoom(data.room);
+    setGame(data.game);
   }, []);
 
-  function createRoom(name) {
-    setError("");
-    socketRef.current?.emit("room:create", { name, token: getPlayerToken() }, (reply) => {
-      if (!reply?.ok) {
-        setError(reply?.error || "Could not create room.");
-        return;
+  // Poll for state while we're in a room; any user action also applies its
+  // own response immediately for instant feedback between poll ticks.
+  useEffect(() => {
+    if (!roomCode) return undefined;
+    let cancelled = false;
+
+    async function poll() {
+      try {
+        const data = await callApi("state", { roomCode, name: nameRef.current, token });
+        if (cancelled) return;
+        applySnapshot(data);
+        setError("");
+      } catch (err) {
+        if (cancelled) return;
+        setError(err.message);
+        if (/not found/i.test(err.message)) {
+          clearSession();
+          setRoomCode("");
+          setRoom(null);
+          setGame(null);
+        }
       }
-      window.history.replaceState(null, "", `/room/${reply.roomCode}`);
-      saveSession(reply.roomCode, name);
-    });
+    }
+
+    poll();
+    const id = window.setInterval(poll, POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [roomCode, token, applySnapshot]);
+
+  async function createRoom(name) {
+    setError("");
+    setSubmitting(true);
+    nameRef.current = name;
+    try {
+      const data = await callApi("create", { name, token });
+      window.history.replaceState(null, "", `/room/${data.roomCode}`);
+      saveSession(data.roomCode, name);
+      applySnapshot(data);
+      setRoomCode(data.roomCode);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  function joinRoom(roomCode, name) {
+  async function joinRoom(code, name) {
     setError("");
-    socketRef.current?.emit("room:join", { roomCode, name, token: getPlayerToken() }, (reply) => {
-      if (!reply?.ok) {
-        setError(reply?.error || "Could not join room.");
-        return;
-      }
-      window.history.replaceState(null, "", `/room/${reply.roomCode}`);
-      saveSession(reply.roomCode, name);
-    });
+    setSubmitting(true);
+    nameRef.current = name;
+    try {
+      const data = await callApi("join", { roomCode: code, name, token });
+      window.history.replaceState(null, "", `/room/${data.roomCode}`);
+      saveSession(data.roomCode, name);
+      applySnapshot(data);
+      setRoomCode(data.roomCode);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function leaveRoom() {
@@ -411,15 +444,24 @@ export default function App() {
     window.location.href = "/";
   }
 
+  async function sendAction(action, payload) {
+    try {
+      const data = await callApi(action, { roomCode, name: nameRef.current, token, ...payload });
+      applySnapshot(data);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   if (game) {
     return (
       <GameScreen
         game={game}
-        viewerId={viewerId}
-        onPlay={(cardIndex, declaredSuit) => socketRef.current?.emit("game:play", { roomCode: game.roomCode, cardIndex, declaredSuit })}
-        onDraw={() => socketRef.current?.emit("game:draw", { roomCode: game.roomCode })}
-        onKadi={() => socketRef.current?.emit("game:kadi", { roomCode: game.roomCode })}
-        onRestart={() => socketRef.current?.emit("game:restart", { roomCode: game.roomCode })}
+        viewerId={token}
+        onPlay={(cardIndex, declaredSuit) => sendAction("play", { cardIndex, declaredSuit })}
+        onDraw={() => sendAction("draw", {})}
+        onKadi={() => sendAction("kadi", {})}
+        onRestart={() => sendAction("restart", {})}
       />
     );
   }
@@ -428,8 +470,8 @@ export default function App() {
     return (
       <LobbyScreen
         room={room}
-        viewerId={viewerId}
-        onStart={() => socketRef.current?.emit("room:start", { roomCode: room.roomCode })}
+        viewerId={token}
+        onStart={() => sendAction("start", {})}
         onLeave={leaveRoom}
       />
     );
@@ -437,7 +479,7 @@ export default function App() {
 
   return (
     <SetupScreen
-      connected={connected}
+      submitting={submitting}
       error={error}
       initialRoomCode={initialRoomCode}
       onCreate={createRoom}

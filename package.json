@@ -7,18 +7,15 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "npm run build && node server.js",
+    "dev": "vite",
     "build": "vite build",
-    "preview": "node server.js",
-    "start": "node server.js"
+    "preview": "vite preview"
   },
   "dependencies": {
+    "@upstash/redis": "^1.38.4",
     "@vitejs/plugin-react": "^5.0.0",
-    "express": "^5.2.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "socket.io": "^4.8.3",
-    "socket.io-client": "^4.8.3",
     "vite": "^7.0.0"
   }
 }

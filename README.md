@@ -1,38 +1,41 @@
 # Kadi React
 
-Mobile- and desktop-friendly React client for the Kenyan card game Kadi, with realtime multiplayer rooms over Socket.IO.
+Mobile- and desktop-friendly React client for the Kenyan card game Kadi, with realtime multiplayer rooms — fully on Vercel.
+
+## Architecture
+
+- **Frontend**: Vite + React static build.
+- **Backend**: a single Vercel serverless function ([api/kadi.js](api/kadi.js)) handling room/game actions.
+- **State**: room and game state live in Upstash Redis (via the Vercel Marketplace integration), read-modify-written with optimistic concurrency (compare-and-swap) so concurrent moves from different players never clobber each other.
+- **Transport**: plain HTTP polling (`~1.5s`), not WebSockets. Socket.IO needs sticky sessions that serverless platforms like Vercel don't provide; polling is stateless per request, so it fits serverless correctly and the latency is imperceptible for a turn-based card game.
 
 ## Local development
 
+For full-stack testing (frontend + the `/api/kadi` function + Redis), run:
+
 ```bash
 npm install
-npm run dev
+vercel dev
 ```
 
-Open the URL printed in the terminal. By default the local app runs on `http://127.0.0.1:4173/`.
+`vercel dev` reads Redis credentials from `.env.local` (created automatically when the Upstash integration was connected via `vercel integration add` / `vercel env pull`).
 
-`npm run dev` builds the frontend and starts the same Node/Socket.IO server used in production, so the client talks to `server.js` on the same origin — no `.env` needed locally.
+`npm run dev` (plain `vite`) also works for frontend-only UI iteration, but `/api/kadi` calls will 404 since nothing serves them outside `vercel dev` or a real deployment.
 
-## Deployment: Vercel (frontend) + Render (realtime server)
+## Deployment
 
-Socket.IO rooms keep their state in memory on a single long-running process, which Vercel's serverless functions can't provide. So the app deploys as two pieces:
+This is a single Vercel project — no separate backend host needed.
 
-- **Frontend (static)** → Vercel. `vercel.json` builds with `vite build` and serves `dist/`, rewriting all routes to `index.html` so links like `/room/A7KQ2` work on refresh.
-- **Realtime server** → Render (or any long-running Node host). `render.yaml` is already set up for this: `npm ci && npm run build` then `npm start` (`node server.js`), which also happens to serve the built frontend itself as a fallback.
-
-Steps:
-
-1. Deploy the repo to Render (or run `render.yaml` as a Blueprint). Note the server's URL, e.g. `https://kadi-react.onrender.com`.
-2. In your Vercel project settings, set the environment variable `VITE_SERVER_URL` to that Render URL (see `.env.example`). Redeploy so the build picks it up.
-3. Optionally lock down the Render server's `ALLOWED_ORIGIN` env var to your Vercel domain instead of `*`.
-
-If you'd rather run everything as one service (no Vercel), just deploy `render.yaml` alone and skip `VITE_SERVER_URL` — the client defaults to same-origin.
+1. Import the repo at [vercel.com/new](https://vercel.com/new) (or `vercel deploy --prod` from this directory once linked).
+2. Add Redis storage once, from the Vercel dashboard: **Storage → Marketplace Database Integrations → Upstash for Redis** (or `vercel integration add upstash/upstash-kv`), then connect it to this project. That sets `KV_REST_API_URL` / `KV_REST_API_TOKEN` automatically — no other env vars needed.
+3. Deploy. `vercel.json` handles the SPA rewrite so links like `/room/A7KQ2` work on refresh; `/api/*` routes are served by the function directly.
 
 ## Rooms & reconnection
 
-- Each browser gets a persistent player token (stored in `localStorage`), independent of the Socket.IO connection id.
-- Losing the connection (tab backgrounded, phone locked, network blip) doesn't remove you from a room — the server holds your seat for 45s, and the client auto-rejoins with your token as soon as it reconnects.
+- Each browser gets a persistent player token (stored in `localStorage`), independent of any single request.
+- Every poll/action refreshes that player's presence timestamp in Redis. Losing connectivity (tab backgrounded, phone locked, network blip) doesn't remove you from a room — the server holds your seat for 45s, and the client auto-resumes polling as your token as soon as it's back online.
 - If it's your turn and you're gone for more than 20s, the server auto-draws for you so the table isn't stuck waiting.
+- Room state expires from Redis after 6 hours of inactivity, so abandoned rooms clean themselves up.
 
 ## Room links
 
