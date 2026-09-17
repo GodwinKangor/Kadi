@@ -84,6 +84,7 @@ function cardName(card) {
 }
 
 function cardType(card) {
+  if (card.id === "A-spades") return "Special Ace";
   if (card.rank === "J") return "Jump";
   if (card.rank === "K") return "Kickback";
   if (QUESTIONS.has(card.rank)) return "Question";
@@ -261,6 +262,10 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
   // turn, since by then play has already moved on.
   const canDeclareKadi = Boolean(you) && game.kadiWindowHolderId === viewerId && !you.saidKadi && !game.winner;
   const aceCount = you?.hand.filter((card) => card.rank === "A").length ?? 0;
+  const hasAceOfSpades = you?.hand.some((card) => card.id === "A-spades") ?? false;
+  // The Ace of Spades is "special" alone; two or more Aces together (any
+  // suits) carry the same suit+rank-lock power.
+  const showRankPicker = aceCount >= 2 || hasAceOfSpades;
 
   return (
     <main className="app-shell">
@@ -345,9 +350,9 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
               </button>
             ))}
           </div>
-          {aceCount >= 2 && (
-            <label className="field rank-picker" aria-label="Ace pair: also declare a rank">
-              <span>+ Rank ({aceCount} Aces)</span>
+          {showRankPicker && (
+            <label className="field rank-picker" aria-label="Special Ace: also declare a rank">
+              <span>+ Rank ({aceCount >= 2 ? `${aceCount} Aces` : "Ace of Spades"})</span>
               <select value={selectedRank} onChange={(event) => setSelectedRank(event.target.value)}>
                 {RANKS.map((rank) => (
                   <option key={rank} value={rank}>
