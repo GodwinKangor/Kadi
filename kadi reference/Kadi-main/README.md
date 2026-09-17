@@ -32,7 +32,12 @@ If one of these cards is drawn, the dealer returns it to the draw pile, shuffles
 - Players must play a card that matches the suit or rank of the top card on the discard pile.
 - If a player plays a card that does not match the suit or rank of the top card on the discard pile, they are penalised by picking a card from the draw pile and game proceeds to next player.
 - If a player cannot play a card, they must draw a card from the draw pile.
-- If a player plays a Question Card, it must be accompanied by a matching answer card. If the player does not have an answer card, they must draw a card from the draw pile.
+- Question Cards (8 and Q) follow the normal suit-or-rank matching rule: any 8 matches any other 8 and any Q matches any other Q regardless of suit, while an 8 played on a Q (or a Q on an 8) is only legal if the suits match.
+- A Question Card must be answered in the same move as it is played, in one of two ways:
+    - with another Question Card of the same suit, which itself then needs answering — so a player can chain through several same-suit Question Cards before closing the exchange, or
+    - directly with an Answer Card of the same suit, which closes the exchange.
+- Only the player who asked the question can answer it, in that same move. If they cannot close the exchange with a matching Answer Card (even after chaining through every same-suit Question Card they hold), none of the Question Cards are played — the asking player draws one card from the draw pile instead and their turn ends. Opponents are never penalised for someone else's unanswered question.
+- Once a question exchange is resolved (or abandoned by drawing), play continues as normal from the next player, matching suit or rank against whatever card is now on top of the discard pile.
 - If a player plays a Jump Card, the next player is skipped. However, the player who was to play next can counter the move by playing their individual Jump Card, and the rules for Jump Cards apply based on this move.
 - If a player plays a Kickback Card, the game direction reverses. The player who was to play next can counter the move by playing their individual Kickback Card, and the rules for Kickback Cards apply based on the move made.
 - Multiple Jump Cards can be played by the same player, and with each card, a player is skipped in the direction of play. Similarly, if multiple Kickback Cards are played, the direction reverses with each card.
@@ -40,9 +45,9 @@ If one of these cards is drawn, the dealer returns it to the draw pile, shuffles
 - If a player realizes they can win on the next round of play, they must announce "Niko Kadi." Otherwise, they cannot win.
 - If the draw pile runs out of cards, the discard pile (excluding the top card) is shuffled to form the draw pile.
 - Penalty Cards (2, 3, and Jokers) must be followed by the next player drawing 2, 3 or 5 cards, respectively. The next player can avoid the penalty by:
-    - Playing a Penalty Card of the same rank.
-    - Playing an Ace card. The game continues with the suit from the previous Penalty Card.
-    - Note that playing a Penalty Card only forwards the penalty to the next player.
+    - Playing any Penalty Card — a 2, a 3, or a Joker, not necessarily the same rank as the one just played ("bomb for bomb"). Their values stack, so a 2 followed by a 3 followed by a Joker leaves a 10-card penalty for whoever can't forward or cancel it.
+    - Playing an Ace card, which cancels the entire accumulated penalty outright (the next player does not draw anything). The game continues with the suit from the previous Penalty Card.
+    - Note that playing a Penalty Card only forwards the (growing) penalty to the next player.
 - After a Joker card is played the game continues with the suit/rank from the Penalty Card.
 
 # Winning
@@ -52,5 +57,5 @@ For a player to win, they must play all their winning cards in one move and, hav
 
 The winning cards are:
 -	Answer Cards
--	Question Cards followed by their matching answer cards. 
+-	Question Cards followed by their matching answer cards, including a chain of several same-suit Question Cards closed by a single Answer Card, all played in the same move.
 

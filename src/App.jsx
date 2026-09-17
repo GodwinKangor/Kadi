@@ -311,7 +311,7 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
               </button>
             ))}
           </div>
-          <button type="button" onClick={onKadi} disabled={!yourTurn || !you || you.hand.length > 2 || you.saidKadi}>
+          <button type="button" onClick={onKadi} disabled={!yourTurn || !you || you.hand.length > 6 || you.saidKadi}>
             Niko Kadi
           </button>
           <button type="button" onClick={onDraw} disabled={!yourTurn}>
