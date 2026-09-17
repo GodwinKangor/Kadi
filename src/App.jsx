@@ -110,6 +110,16 @@ function suitRequirementDisplay(requirement) {
   return SUITS.find((suit) => suit.id === requirement) ?? SUIT_GROUPS.find((group) => group.id === requirement) ?? null;
 }
 
+// Lets a player type a declaration instead of clicking a button — "h",
+// "hearts", "red", etc. Prefix-matched, case-insensitive, first letter is
+// enough for every option since h/d/c/s/r/b are all distinct.
+function normalizeSuitInput(text) {
+  const t = text.trim().toLowerCase();
+  if (!t) return null;
+  const match = [...SUITS, ...SUIT_GROUPS].find((option) => option.id.startsWith(t) || option.label.toLowerCase().startsWith(t));
+  return match?.id ?? null;
+}
+
 function Card({ card, hidden = false, disabled = false, onClick }) {
   const suit = cardSuit(card);
   const className = ["card", suit?.color === "red" ? "red" : "black", hidden ? "hidden" : "", disabled ? "disabled" : ""]
@@ -256,6 +266,13 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
   const yourTurn = currentPlayer?.id === viewerId && !game.winner;
   const [selectedSuit, setSelectedSuit] = useState("hearts");
   const [selectedRank, setSelectedRank] = useState("2");
+  const [suitText, setSuitText] = useState("");
+
+  function handleSuitTextChange(value) {
+    setSuitText(value);
+    const match = normalizeSuitInput(value);
+    if (match) setSelectedSuit(match);
+  }
   const top = topCard(game);
   // The declare window is open on the *next* player's turn, right after you
   // played the card that leaves you one move from winning — not your own
@@ -331,7 +348,10 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
                 key={suit.id}
                 type="button"
                 className={`${selectedSuit === suit.id ? "selected" : ""} ${suit.color === "red" ? "red-text" : ""}`}
-                onClick={() => setSelectedSuit(suit.id)}
+                onClick={() => {
+                  setSelectedSuit(suit.id);
+                  setSuitText(suit.label);
+                }}
                 aria-label={`Declare ${suit.label}`}
               >
                 {suit.icon}
@@ -342,7 +362,10 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
                 key={group.id}
                 type="button"
                 className={`group ${selectedSuit === group.id ? "selected" : ""} ${group.color === "red" ? "red-text" : ""}`}
-                onClick={() => setSelectedSuit(group.id)}
+                onClick={() => {
+                  setSelectedSuit(group.id);
+                  setSuitText(group.label);
+                }}
                 aria-label={`Declare ${group.label}`}
                 title={group.label}
               >
@@ -350,6 +373,15 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
               </button>
             ))}
           </div>
+          <label className="field suit-text" aria-label="Or type a suit declaration">
+            <span>Or type it — declaring {suitRequirementDisplay(selectedSuit)?.label ?? selectedSuit}</span>
+            <input
+              value={suitText}
+              onChange={(event) => handleSuitTextChange(event.target.value)}
+              placeholder="e.g. hearts, red, spades..."
+              maxLength={20}
+            />
+          </label>
           {showRankPicker && (
             <label className="field rank-picker" aria-label="Special Ace: also declare a rank">
               <span>+ Rank ({aceCount >= 2 ? `${aceCount} Aces` : "Ace of Spades"})</span>

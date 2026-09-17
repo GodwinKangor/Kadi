@@ -525,8 +525,13 @@ button {
   box-shadow: inset 0 0 0 2px #172033;
 }
 
+.suit-text,
 .rank-picker {
   grid-column: 1 / -1;
+}
+
+.suit-text input {
+  min-height: 40px;
 }
 
 .rank-picker select {
