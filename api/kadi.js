@@ -1,4 +1,5 @@
 import {
+  advanceTurn,
   applyCard,
   buildGame,
   cleanName,
@@ -43,7 +44,7 @@ function runMaintenance(room) {
     game.pendingPenalty = 0;
     game.message = `${game.players[game.currentPlayer].name} was away and picked ${count > 1 ? `${count} penalty cards` : "a card"}.`;
     game.log = [game.message, ...game.log].slice(0, 8);
-    game.currentPlayer = nextIndex(game.currentPlayer, game.direction, game.players.length);
+    advanceTurn(game, currentToken, nextIndex(game.currentPlayer, game.direction, game.players.length));
   }
 }
 
@@ -114,8 +115,10 @@ function buildSnapshot(room, token) {
     currentPlayer: game.currentPlayer,
     direction: game.direction,
     declaredSuit: game.declaredSuit,
+    declaredRank: game.declaredRank,
     pendingPenalty: game.pendingPenalty,
     winner: game.winner,
+    kadiWindowHolderId: game.kadiWindow?.holderId ?? null,
     message: game.message,
     log: game.log,
   };
@@ -163,7 +166,7 @@ const handleStart = withPresence((room, token) => {
 
 const handlePlay = withPresence((room, token, body) => {
   if (!room.game) return { error: "Game hasn't started." };
-  applyCard(room.game, token, Number(body.cardIndex), body.declaredSuit);
+  applyCard(room.game, token, Number(body.cardIndex), body.declaredSuit, body.declaredRank);
 });
 
 const handleDraw = withPresence((room, token) => {
@@ -178,15 +181,20 @@ const handleDraw = withPresence((room, token) => {
     ? `${game.players[game.currentPlayer].name} picked ${count} penalty cards.`
     : `${game.players[game.currentPlayer].name} picked a card.`;
   game.log = [game.message, ...game.log].slice(0, 8);
-  game.currentPlayer = nextIndex(game.currentPlayer, game.direction, game.players.length);
+  advanceTurn(game, token, nextIndex(game.currentPlayer, game.direction, game.players.length));
 });
 
 const handleKadi = withPresence((room, token) => {
   const game = room.game;
   if (!game || game.winner) return;
-  if (game.players[game.currentPlayer]?.id !== token) return;
-  game.players[game.currentPlayer].saidKadi = true;
-  game.message = `${game.players[game.currentPlayer].name} said Niko Kadi.`;
+  if (!game.kadiWindow || game.kadiWindow.holderId !== token) {
+    return { error: "You can only announce Niko Kadi right after the play that leaves you one move from winning." };
+  }
+  const player = game.players.find((p) => p.id === token);
+  if (!player) return;
+  player.saidKadi = true;
+  game.kadiWindow = null;
+  game.message = `${player.name} said Niko Kadi.`;
   game.log = [game.message, ...game.log].slice(0, 8);
 });
 

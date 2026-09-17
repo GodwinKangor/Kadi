@@ -65,6 +65,7 @@ const SUITS = [
 const QUESTIONS = new Set(["8", "Q"]);
 const ANSWERS = new Set(["A", "4", "5", "6", "7", "9", "10"]);
 const PENALTY_DRAW = { 2: 2, 3: 3, JOK: 5 };
+const RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
 
 function getInitialRoomCode() {
   const match = window.location.pathname.match(/^\/room\/([A-Z0-9]+)/i);
@@ -97,6 +98,15 @@ function topCard(game) {
 
 function activeSuit(game) {
   return game.declaredSuit ?? topCard(game)?.suit;
+}
+
+const SUIT_GROUPS = [
+  { id: "red", label: "All Red", icon: "♥♦", color: "red" },
+  { id: "black", label: "All Black", icon: "♠♣", color: "black" },
+];
+
+function suitRequirementDisplay(requirement) {
+  return SUITS.find((suit) => suit.id === requirement) ?? SUIT_GROUPS.find((group) => group.id === requirement) ?? null;
 }
 
 function Card({ card, hidden = false, disabled = false, onClick }) {
@@ -241,11 +251,16 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
   const you = game.players.find((player) => player.id === viewerId);
   const opponents = game.players.filter((player) => player.id !== viewerId);
   const currentPlayer = game.players[game.currentPlayer];
-  const currentSuit = SUITS.find((suit) => suit.id === activeSuit(game));
+  const currentSuit = suitRequirementDisplay(activeSuit(game));
   const yourTurn = currentPlayer?.id === viewerId && !game.winner;
   const [selectedSuit, setSelectedSuit] = useState("hearts");
+  const [selectedRank, setSelectedRank] = useState("2");
   const top = topCard(game);
-  const kadiEligible = yourTurn && Boolean(you) && you.hand.length <= 6 && !you.saidKadi;
+  // The declare window is open on the *next* player's turn, right after you
+  // played the card that leaves you one move from winning — not your own
+  // turn, since by then play has already moved on.
+  const canDeclareKadi = Boolean(you) && game.kadiWindowHolderId === viewerId && !you.saidKadi && !game.winner;
+  const aceCount = you?.hand.filter((card) => card.rank === "A").length ?? 0;
 
   return (
     <main className="app-shell">
@@ -287,13 +302,19 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
           <div>
             <span>Suit</span>
             <strong className={currentSuit?.color === "red" ? "red-text" : ""}>
-              {currentSuit?.icon} {currentSuit?.label}
+              {currentSuit?.icon} {currentSuit?.label ?? currentSuit?.id}
             </strong>
           </div>
           <div>
             <span>Penalty</span>
             <strong>{game.pendingPenalty ? `+${game.pendingPenalty}` : "None"}</strong>
           </div>
+          {game.declaredRank && (
+            <div>
+              <span>Rank lock</span>
+              <strong>{game.declaredRank}</strong>
+            </div>
+          )}
         </section>
 
         <p className="message">{game.message}</p>
@@ -311,12 +332,36 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
                 {suit.icon}
               </button>
             ))}
+            {SUIT_GROUPS.map((group) => (
+              <button
+                key={group.id}
+                type="button"
+                className={`group ${selectedSuit === group.id ? "selected" : ""} ${group.color === "red" ? "red-text" : ""}`}
+                onClick={() => setSelectedSuit(group.id)}
+                aria-label={`Declare ${group.label}`}
+                title={group.label}
+              >
+                {group.icon}
+              </button>
+            ))}
           </div>
+          {aceCount >= 2 && (
+            <label className="field rank-picker" aria-label="Ace pair: also declare a rank">
+              <span>+ Rank ({aceCount} Aces)</span>
+              <select value={selectedRank} onChange={(event) => setSelectedRank(event.target.value)}>
+                {RANKS.map((rank) => (
+                  <option key={rank} value={rank}>
+                    {rank}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <button
             type="button"
-            className={kadiEligible ? "kadi-nudge" : ""}
+            className={canDeclareKadi ? "kadi-nudge" : ""}
             onClick={onKadi}
-            disabled={!yourTurn || !you || you.hand.length > 6 || you.saidKadi}
+            disabled={!canDeclareKadi}
           >
             Niko Kadi
           </button>
@@ -332,7 +377,7 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
           </div>
           <div className="hand">
             {you?.hand.map((card, index) => (
-              <Card key={card.id} card={card} disabled={!yourTurn} onClick={() => onPlay(index, selectedSuit)} />
+              <Card key={card.id} card={card} disabled={!yourTurn} onClick={() => onPlay(index, selectedSuit, selectedRank)} />
             ))}
           </div>
         </section>
@@ -464,7 +509,7 @@ export default function App() {
       <GameScreen
         game={game}
         viewerId={token}
-        onPlay={(cardIndex, declaredSuit) => sendAction("play", { cardIndex, declaredSuit })}
+        onPlay={(cardIndex, declaredSuit, declaredRank) => sendAction("play", { cardIndex, declaredSuit, declaredRank })}
         onDraw={() => sendAction("draw", {})}
         onKadi={() => sendAction("kadi", {})}
         onRestart={() => sendAction("restart", {})}

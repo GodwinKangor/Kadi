@@ -504,7 +504,7 @@ button {
 
 .suit-picker {
   display: grid;
-  grid-template-columns: repeat(4, minmax(38px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(38px, 1fr));
   gap: 6px;
 }
 
@@ -515,9 +515,30 @@ button {
   font-size: 1.3rem;
 }
 
+.suit-picker button.group {
+  font-size: 1rem;
+  letter-spacing: -2px;
+}
+
 .suit-picker button.selected {
   background: #f0c75e;
   box-shadow: inset 0 0 0 2px #172033;
+}
+
+.rank-picker {
+  grid-column: 1 / -1;
+}
+
+.rank-picker select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid rgba(23, 32, 51, 0.16);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #fffdf8;
+  color: #172033;
+  font: inherit;
+  font-weight: 750;
 }
 
 .hand-section {
