@@ -319,11 +319,16 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
   }
 
   // Whether `card` can be added to a same-rank set (anchor is a plain card)
-  // or a Question chain (anchor is a Question card — everything must share
-  // its suit, and be either another Question or a valid closing Answer).
+  // or a Question chain (anchor is a Question card): another Question card
+  // can pile on by matching the anchor's suit (the original chain rule) OR
+  // its rank (8s pile on 8s regardless of suit, same as any other rank set)
+  // — but the one closing Answer card must match the anchor's suit
+  // specifically, since that's what actually resolves the exchange.
   function matchesSelectionMode(anchor, card) {
     if (QUESTIONS.has(anchor.rank)) {
-      return card.suit === anchor.suit && (QUESTIONS.has(card.rank) || QUESTION_CLOSING_RANKS.has(card.rank));
+      const sameSuit = card.suit === anchor.suit;
+      if (QUESTIONS.has(card.rank)) return sameSuit || card.rank === anchor.rank;
+      return QUESTION_CLOSING_RANKS.has(card.rank) && sameSuit;
     }
     return anchor.rank === card.rank;
   }
