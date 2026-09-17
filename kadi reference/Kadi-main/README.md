@@ -35,7 +35,7 @@ If one of these cards is drawn, the dealer returns it to the draw pile, shuffles
 - Question Cards (8 and Q) follow the normal suit-or-rank matching rule: any 8 matches any other 8 and any Q matches any other Q regardless of suit, while an 8 played on a Q (or a Q on an 8) is only legal if the suits match.
 - A Question Card must be answered in the same move as it is played, in one of two ways:
     - with another Question Card of the same suit, which itself then needs answering — so a player can chain through several same-suit Question Cards before closing the exchange, or
-    - directly with an Answer Card of the same suit, which closes the exchange.
+    - directly with an Answer Card of the same suit, which closes the exchange — an Ace does not count as an answer here (see the wild-card rules below), only 4, 5, 6, 7, 9, or 10.
 - Only the player who asked the question can answer it, in that same move. If they cannot close the exchange with a matching Answer Card (even after chaining through every same-suit Question Card they hold), none of the Question Cards are played — the asking player draws one card from the draw pile instead and their turn ends. Opponents are never penalised for someone else's unanswered question.
 - Once a question exchange is resolved (or abandoned by drawing), play continues as normal from the next player, matching suit or rank against whatever card is now on top of the discard pile.
 - If a player plays a Jump Card, the next player is skipped. However, the player who was to play next can counter the move by playing their individual Jump Card, and the rules for Jump Cards apply based on this move.
