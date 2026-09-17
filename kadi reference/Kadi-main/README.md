@@ -50,7 +50,24 @@ If one of these cards is drawn, the dealer returns it to the draw pile, shuffles
     - Playing any Penalty Card — a 2, a 3, or a Joker, not necessarily the same rank as the one just played ("bomb for bomb"). Their values stack, so a 2 followed by a 3 followed by a Joker leaves a 10-card penalty for whoever can't forward or cancel it.
     - Playing an Ace card, which cancels the entire accumulated penalty outright (the next player does not draw anything). The game continues with the suit from the previous Penalty Card.
     - Note that playing a Penalty Card only forwards the (growing) penalty to the next player.
-- After a Joker card is played the game continues with the suit/rank from the Penalty Card.
+- Jokers have a color (there's a red Joker and a black Joker in the deck), and if a penalty chain fizzles out with a Joker left on top of the discard pile, the next play just needs to match that Joker's own color (any red-suited card for the red Joker, any black-suited card for the black Joker) — the same "all red"/"all black" matching an Ace can declare.
+
+# Illegal Plays
+
+A play is illegal whenever it doesn't satisfy any of the legal-play conditions above for the card(s) being played. In practice:
+
+- The card doesn't match the top of the discard pile by rank or by the currently required suit/color (including a Joker's own color, or a suit/color locked in by an Ace), and it isn't an Ace — Aces are always legal to play, at any time.
+- A penalty is pending and the card played is neither a Penalty Card (2, 3, Joker — any rank counts, see "bomb for bomb") nor an Ace.
+- A Question Card (8 or Q) is played but the player can't close the exchange with a matching Answer Card, even after chaining through every same-suit Question Card in their hand.
+- A suit-and-rank has been locked by a special Ace (Ace of Spades, or two-or-more Aces together) or a prior double-lock persists through a counter-Ace, and the card played satisfies neither the locked suit/color nor the locked rank, and it isn't an Ace.
+- It isn't the player's turn, or the card doesn't exist in their hand.
+
+Consequences differ slightly by case:
+- A straightforwardly illegal card (first bullet) or an unmatched pending penalty (second bullet): the card is **not played** — it's a one-card penalty draw for the player, and their turn ends.
+- An unanswerable Question Card (third bullet): none of the Question Cards are played either — same one-card penalty draw, turn ends, and the cards stay in the player's hand to try again another turn.
+- An unmatched suit/rank lock (fourth bullet): also not played — same one-card penalty draw and turn ends.
+
+In every case, the attempted card(s) stay in the player's hand; only the single penalty card gets added.
 
 # Winning
 A player cannot win if any of the players is cardless.
