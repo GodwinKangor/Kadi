@@ -319,29 +319,35 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
   }
 
   // Whether `card` can be added to a same-rank set (anchor is a plain card)
-  // or a Question chain (anchor is a Question card): another Question card
-  // can pile on by matching the anchor's suit (the original chain rule) OR
-  // its rank (8s pile on 8s regardless of suit, same as any other rank set)
-  // — but the one closing Answer card must match the anchor's suit
-  // specifically, since that's what actually resolves the exchange.
-  function matchesSelectionMode(anchor, card) {
+  // or a Question chain (selected is the cards chosen so far, anchor =
+  // selected[0]): another Question card can pile on by matching the
+  // anchor's suit (the original chain rule) OR its rank (8s pile on 8s
+  // regardless of suit, same as any other rank set). A closing Answer card
+  // can be a bulk same-rank set too (e.g. three 10s), same as any other
+  // rank — but at least one of them must match the anchor's suit, since
+  // that's what actually resolves the exchange; once one does, further
+  // same-rank closers of other suits are free to ride along.
+  function matchesSelectionMode(selected, card) {
+    const anchor = selected[0];
     if (QUESTIONS.has(anchor.rank)) {
       const sameSuit = card.suit === anchor.suit;
       if (QUESTIONS.has(card.rank)) return sameSuit || card.rank === anchor.rank;
-      return QUESTION_CLOSING_RANKS.has(card.rank) && sameSuit;
+      if (!QUESTION_CLOSING_RANKS.has(card.rank)) return false;
+      const existingCloser = selected.find((c) => QUESTION_CLOSING_RANKS.has(c.rank));
+      return existingCloser ? card.rank === existingCloser.rank : sameSuit;
     }
     return anchor.rank === card.rank;
   }
 
   function toggleCard(card) {
-    const anchor = selection[0] ? you.hand.find((c) => c.id === selection[0]) : null;
-    if (anchor && matchesSelectionMode(anchor, card)) {
+    const selectedCards = selection.map((id) => you.hand.find((c) => c.id === id)).filter(Boolean);
+    if (selectedCards.length > 0 && matchesSelectionMode(selectedCards, card)) {
       setSelection((current) => (current.includes(card.id) ? current.filter((id) => id !== card.id) : [...current, card.id]));
       return;
     }
 
     if (QUESTIONS.has(card.rank)) {
-      const candidateCount = you.hand.filter((c) => c.id !== card.id && matchesSelectionMode(card, c)).length;
+      const candidateCount = you.hand.filter((c) => c.id !== card.id && matchesSelectionMode([card], c)).length;
       if (candidateCount === 0) {
         playCards([card.id]); // nothing to build a chain from - let auto-resolve draw if it truly has no answer
       } else {
@@ -556,8 +562,8 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
                 selected={selection.includes(card.id)}
                 selectable={(() => {
                   if (selection.length === 0 || selection.includes(card.id)) return false;
-                  const anchor = you.hand.find((c) => c.id === selection[0]);
-                  return Boolean(anchor) && matchesSelectionMode(anchor, card);
+                  const selectedCards = selection.map((id) => you.hand.find((c) => c.id === id)).filter(Boolean);
+                  return selectedCards.length > 0 && matchesSelectionMode(selectedCards, card);
                 })()}
                 onClick={() => toggleCard(card)}
               />
