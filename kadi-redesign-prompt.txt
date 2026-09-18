@@ -1,0 +1,39 @@
+Redesign and implement our existing Kadi multiplayer card game using the attached designs as visual inspiration. Work directly in the current project and preserve the existing Kadi rules, room system, and multiplayer functionality.
+
+VISUAL DIRECTION
+
+Create an immersive card-table experience with a deep teal and emerald felt background, subtle texture, dark navy controls, and restrained gold highlights. Combine the first reference's expressive card artwork with the other references' player placement, overlapping hands, and spacious central table. Give Kadi its own consistent identity.
+
+GAME TABLE
+
+- Fill the viewport with the playing surface, adapting naturally to mobile portrait, landscape, and desktop.
+- Anchor the current player's hand at the bottom in a gently curved, overlapping fan. Keep ranks and suits readable, including with large hands.
+- Arrange opponents around the upper and side edges. Show their avatars or initials, names, card counts, and small fans of face-down cards.
+- Mark the active player with a clear glowing ring and "Your turn" or player-turn label. Show a countdown only if the game already supports one.
+- Place the draw deck and discard pile prominently in the center, with realistic stacking and subtle shadows.
+- Clearly display the requested suit, draw penalties, play direction, and other states supported by the existing rules.
+- Keep Draw, Play, and Declare Kadi controls within comfortable reach, showing them when relevant.
+
+CARDS AND INTERACTION
+
+- Use ivory card faces, crisp red and black suits, large corner labels, illustrated court cards, and a distinctive patterned back.
+- Create original or appropriately licensed artwork that remains consistent across the deck.
+- Make selected cards lift above the hand. Distinguish playable, selected, and unavailable states without relying on color alone.
+- Support touch and mouse interaction, with keyboard access and visible focus states.
+- Add brief, smooth animations for dealing, drawing, playing, and turn changes. Respect reduced-motion preferences.
+- Keep card values and important controls legible on small screens.
+
+LOBBY AND SUPPORTING SCREENS
+
+- Extend the table's visual style to Create/Join, the waiting room, suit selection, and game results.
+- Show player seats, room code, a working copy-invite action, and the host's start control.
+- Give connection states clear feedback: connecting, connected, reconnecting, and failed, with an appropriate retry action. Avoid leaving users indefinitely on "Connecting to room server...".
+- Keep menus compact so gameplay remains the main focus.
+
+IMPLEMENTATION REQUIREMENTS
+
+Inspect the current components, styles, and game events before editing. Reuse the existing React and Socket.IO architecture. Keep game state authoritative on the server and never expose opponents' hidden cards.
+
+Match the references' visual quality while retaining Kadi's actual mechanics. Only include controls backed by real functionality; the references' currencies, bidding systems, and unrelated game features are outside this redesign.
+
+Implement the working redesign, then verify the build and available multiplayer flows. Check mobile layouts, large hands, long player names, turn changes, and connection failures. Report what changed, what was verified, and any remaining limitations.

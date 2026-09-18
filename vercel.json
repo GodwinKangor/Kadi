@@ -1,5 +1,5 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [{ "source": "/((?!api/|src/|@vite/|@react-refresh|assets/).*)", "destination": "/index.html" }]
 }

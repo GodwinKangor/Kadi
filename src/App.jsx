@@ -6,11 +6,18 @@ const TOKEN_KEY = "kadi:token";
 const SESSION_KEY = "kadi:session";
 
 async function callApi(action, payload) {
-  const response = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, ...payload }),
-  });
+  let response;
+  try {
+    response = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...payload }),
+    });
+  } catch {
+    const networkError = new Error("Can't reach the room server.");
+    networkError.isNetworkError = true;
+    throw networkError;
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data?.ok === false) {
     throw new Error(data?.error || "Request failed.");
@@ -130,7 +137,7 @@ function normalizeSuitInput(text) {
   return match?.id ?? null;
 }
 
-function Card({ card, hidden = false, disabled = false, selected = false, selectable = false, onClick }) {
+function Card({ card, hidden = false, disabled = false, selected = false, selectable = false, style, onClick }) {
   const suit = cardSuit(card);
   const className = [
     "card",
@@ -144,9 +151,9 @@ function Card({ card, hidden = false, disabled = false, selected = false, select
     .join(" ");
 
   return (
-    <button className={className} type="button" disabled={disabled || hidden} onClick={onClick}>
+    <button className={className} type="button" style={style} disabled={disabled || hidden} onClick={onClick}>
       {hidden ? (
-        <span className="card-back">K</span>
+        <span className="card-back">♠</span>
       ) : (
         <>
           <span className="card-rank">{card.rank}</span>
@@ -158,35 +165,101 @@ function Card({ card, hidden = false, disabled = false, selected = false, select
   );
 }
 
+// A gentle curved fan: cards pivot from below, so edges rotate outward and
+// droop slightly relative to the center card, which sits highest.
+function fanCardStyle(index, total, state) {
+  const mid = (total - 1) / 2;
+  const angleStep = total > 1 ? Math.min(9, 50 / total) : 0;
+  const angle = total > 1 ? (index - mid) * angleStep : 0;
+  const arcLift = total > 1 ? Math.abs(index - mid) * 2.2 : 0;
+  const extraLift = state === "selected" ? -26 : state === "selectable" ? -8 : 0;
+  return {
+    transform: `translateY(${arcLift + extraLift}px) rotate(${angle}deg)`,
+    zIndex: state === "selected" ? 50 : index,
+  };
+}
+
+// Deterministic color per player so avatars stay visually distinct and
+// stable across polls without needing real photos.
+function avatarColor(seed) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 46%, 34%)`;
+}
+
+function initialsFor(name) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function Avatar({ name, active }) {
+  return (
+    <div className="avatar-wrap">
+      <div className="avatar" style={{ background: avatarColor(name || "?") }}>
+        {initialsFor(name || "?")}
+      </div>
+      {active && <span className="turn-flag">Turn</span>}
+    </div>
+  );
+}
+
+function ConnectionBanner({ status, onRetry }) {
+  if (status === "connected") return null;
+  const copy = {
+    connecting: "Connecting to room server…",
+    reconnecting: "Connection lost — reconnecting…",
+    failed: "Can't reach the room server.",
+  }[status];
+
+  return (
+    <div className={`connection-banner ${status}`} role="status">
+      <span className="dot" aria-hidden="true" />
+      <span>{copy}</span>
+      {status === "failed" && (
+        <button type="button" onClick={onRetry}>
+          Retry
+        </button>
+      )}
+    </div>
+  );
+}
+
 function Opponent({ player, active }) {
+  const away = player.connected === false;
   return (
     <section className={`opponent ${active ? "active" : ""}`} aria-label={`${player.name} status`}>
-      <div>
-        <strong>{player.name}</strong>
-        <span>{player.connected === false ? "Reconnecting…" : player.saidKadi ? "Niko Kadi" : "Waiting"}</span>
-      </div>
+      <Avatar name={player.name} active={active} />
+      <strong className="opponent-name">{player.name}</strong>
+      <span className={`opponent-status ${away ? "away" : player.saidKadi ? "kadi" : ""}`}>
+        {away ? "Reconnecting…" : player.saidKadi ? "Niko Kadi" : "Waiting"}
+      </span>
       <div className="mini-hand" aria-label={`${player.hand.length} cards`}>
         {player.hand.slice(0, 8).map((card) => (
           <Card key={card.id} card={card} hidden />
         ))}
       </div>
-      <b>{player.hand.length}</b>
+      <b className="opponent-count">{player.hand.length} cards</b>
     </section>
   );
 }
 
-function SetupScreen({ submitting, error, initialRoomCode, onCreate, onJoin }) {
+function SetupScreen({ submitting, error, initialRoomCode, connectionStatus, onRetry, onCreate, onJoin }) {
   const [name, setName] = useState("");
   const [roomCode, setRoomCode] = useState(initialRoomCode);
   const hasInvite = Boolean(initialRoomCode);
 
   return (
-    <main className="setup-shell">
+    <main className="setup-shell felt">
       <section className="setup-panel" aria-label="Room setup">
         <div className="setup-heading">
           <p>Kadi</p>
           <h1>{hasInvite ? "Join the room" : "Create or join"}</h1>
         </div>
+
+        <ConnectionBanner status={connectionStatus} onRetry={onRetry} />
 
         <label className="field">
           <span>Your name</span>
@@ -221,7 +294,7 @@ function SetupScreen({ submitting, error, initialRoomCode, onCreate, onJoin }) {
   );
 }
 
-function LobbyScreen({ room, viewerId, onStart, onLeave }) {
+function LobbyScreen({ room, viewerId, connectionStatus, onRetry, onStart, onLeave }) {
   const isHost = room.hostId === viewerId;
   const shareLink = `${window.location.origin}/room/${room.roomCode}`;
   const [copied, setCopied] = useState(false);
@@ -233,12 +306,14 @@ function LobbyScreen({ room, viewerId, onStart, onLeave }) {
   }
 
   return (
-    <main className="setup-shell">
+    <main className="setup-shell felt">
       <section className="setup-panel lobby-panel" aria-label="Room lobby">
         <div className="setup-heading">
           <p>Room {room.roomCode}</p>
           <h1>Waiting room</h1>
         </div>
+
+        <ConnectionBanner status={connectionStatus} onRetry={onRetry} />
 
         <div className="invite-box">
           <span>Invite link</span>
@@ -275,7 +350,7 @@ function LobbyScreen({ room, viewerId, onStart, onLeave }) {
   );
 }
 
-function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
+function GameScreen({ game, viewerId, connectionStatus, onRetry, onPlay, onDraw, onKadi, onRestart }) {
   const you = game.players.find((player) => player.id === viewerId);
   const opponents = game.players.filter((player) => player.id !== viewerId);
   const currentPlayer = game.players[game.currentPlayer];
@@ -392,7 +467,7 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
   );
 
   return (
-    <main className="app-shell">
+    <main className="app-shell felt">
       <header className="topbar">
         <div>
           <p>Room {game.roomCode}</p>
@@ -403,6 +478,8 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
         </button>
       </header>
 
+      <ConnectionBanner status={connectionStatus} onRetry={onRetry} />
+
       <section className="table" aria-label="Kadi table">
         <div className="opponents">
           {opponents.map((player) => (
@@ -410,18 +487,33 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
           ))}
         </div>
 
-        <section className="play-zone" aria-label="Discard and draw piles">
-          <div className="pile">
-            <span>Draw</span>
-            <Card card={{ rank: "K", suit: "spades" }} hidden />
-            <b>{game.drawCount}</b>
+        <div className="center-row">
+          <div className="direction-indicator" aria-label={game.direction === 1 ? "Clockwise" : "Counter-clockwise"}>
+            <span className="glyph" aria-hidden="true">
+              {game.direction === 1 ? "⟳" : "⟲"}
+            </span>
+            <span>{game.direction === 1 ? "Clockwise" : "Reversed"}</span>
           </div>
-          <div className="pile discard">
-            <span>Discard</span>
-            <Card card={top} />
-            <b>{cardName(top)}</b>
-          </div>
-        </section>
+
+          <section className="play-zone" aria-label="Discard and draw piles">
+            <div className="pile">
+              <span>Draw</span>
+              <div className="pile-stack">
+                <div className="stack-shadow" aria-hidden="true" />
+                <div className="stack-shadow" aria-hidden="true" />
+                <Card card={{ rank: "K", suit: "spades" }} hidden />
+              </div>
+              <b>{game.drawCount} left</b>
+            </div>
+            <div className="pile discard">
+              <span>Discard</span>
+              <div className="pile-stack">
+                <Card card={top} />
+              </div>
+              <b>{cardName(top)}</b>
+            </div>
+          </section>
+        </div>
 
         <section className="status-panel" aria-live="polite">
           <div>
@@ -557,20 +649,26 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
             </p>
           )}
           <div className="hand">
-            {you?.hand.map((card) => (
-              <Card
-                key={card.id}
-                card={card}
-                disabled={!yourTurn}
-                selected={selection.includes(card.id)}
-                selectable={(() => {
-                  if (selection.length === 0 || selection.includes(card.id)) return false;
-                  const selectedCards = selection.map((id) => you.hand.find((c) => c.id === id)).filter(Boolean);
-                  return selectedCards.length > 0 && matchesSelectionMode(selectedCards, card);
-                })()}
-                onClick={() => toggleCard(card)}
-              />
-            ))}
+            {you?.hand.map((card, index) => {
+              const isSelected = selection.includes(card.id);
+              const isSelectable = (() => {
+                if (isSelected || selection.length === 0) return false;
+                const selectedCards = selection.map((id) => you.hand.find((c) => c.id === id)).filter(Boolean);
+                return selectedCards.length > 0 && matchesSelectionMode(selectedCards, card);
+              })();
+              const state = isSelected ? "selected" : isSelectable ? "selectable" : "normal";
+              return (
+                <Card
+                  key={card.id}
+                  card={card}
+                  disabled={!yourTurn}
+                  selected={isSelected}
+                  selectable={isSelectable}
+                  style={fanCardStyle(index, you.hand.length, state)}
+                  onClick={() => toggleCard(card)}
+                />
+              );
+            })}
           </div>
         </section>
       </section>
@@ -609,18 +707,28 @@ export default function App() {
   const [room, setRoom] = useState(null);
   const [game, setGame] = useState(null);
   const [error, setError] = useState("");
+  const [connectionStatus, setConnectionStatus] = useState("connected");
+  const [retryTick, setRetryTick] = useState(0);
   const nameRef = useRef(getSession()?.name || "");
+  const failCountRef = useRef(0);
 
   const applySnapshot = useCallback((data) => {
     setRoom(data.room);
     setGame(data.game);
   }, []);
 
+  function retryConnection() {
+    failCountRef.current = 0;
+    setConnectionStatus("connecting");
+    setRetryTick((tick) => tick + 1);
+  }
+
   // Poll for state while we're in a room; any user action also applies its
   // own response immediately for instant feedback between poll ticks.
   useEffect(() => {
     if (!roomCode) return undefined;
     let cancelled = false;
+    setConnectionStatus("connecting");
 
     async function poll() {
       try {
@@ -628,8 +736,15 @@ export default function App() {
         if (cancelled) return;
         applySnapshot(data);
         setError("");
+        failCountRef.current = 0;
+        setConnectionStatus("connected");
       } catch (err) {
         if (cancelled) return;
+        if (err.isNetworkError) {
+          failCountRef.current += 1;
+          setConnectionStatus(failCountRef.current >= 3 ? "failed" : "reconnecting");
+          return;
+        }
         setError(err.message);
         if (/not found/i.test(err.message)) {
           clearSession();
@@ -646,7 +761,7 @@ export default function App() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [roomCode, token, applySnapshot]);
+  }, [roomCode, token, applySnapshot, retryTick]);
 
   async function createRoom(name) {
     setError("");
@@ -701,6 +816,8 @@ export default function App() {
       <GameScreen
         game={game}
         viewerId={token}
+        connectionStatus={connectionStatus}
+        onRetry={retryConnection}
         onPlay={(cardIndices, declaredSuit, declaredRank) => sendAction("play", { cardIndices, declaredSuit, declaredRank })}
         onDraw={() => sendAction("draw", {})}
         onKadi={() => sendAction("kadi", {})}
@@ -714,6 +831,8 @@ export default function App() {
       <LobbyScreen
         room={room}
         viewerId={token}
+        connectionStatus={connectionStatus}
+        onRetry={retryConnection}
         onStart={() => sendAction("start", {})}
         onLeave={leaveRoom}
       />
@@ -725,6 +844,8 @@ export default function App() {
       submitting={submitting}
       error={error}
       initialRoomCode={initialRoomCode}
+      connectionStatus="connected"
+      onRetry={() => {}}
       onCreate={createRoom}
       onJoin={joinRoom}
     />
