@@ -336,6 +336,9 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
       const existingCloser = selected.find((c) => QUESTION_CLOSING_RANKS.has(c.rank));
       return existingCloser ? card.rank === existingCloser.rank : sameSuit;
     }
+    // Bombs (2, 3, Joker) pile by category, not just exact rank - the same
+    // "bomb for bomb" flexibility available within one move.
+    if (PENALTY_DRAW[anchor.rank]) return Boolean(PENALTY_DRAW[card.rank]);
     return anchor.rank === card.rank;
   }
 
@@ -356,7 +359,7 @@ function GameScreen({ game, viewerId, onPlay, onDraw, onKadi, onRestart }) {
       return;
     }
 
-    const siblingCount = you.hand.filter((c) => c.rank === card.rank).length;
+    const siblingCount = you.hand.filter((c) => matchesSelectionMode([card], c) || c.id === card.id).length;
     if (card.rank !== "A" && siblingCount <= 1) {
       playCards([card.id]); // nothing to decide - no suit to pick, no siblings to add - just play it
     } else {
