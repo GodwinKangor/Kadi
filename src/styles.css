@@ -798,6 +798,7 @@ a:focus-visible {
 
 .hand-heading strong,
 .hand-heading span {
+  min-width: 0;
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
