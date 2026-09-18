@@ -172,9 +172,12 @@ function fanCardStyle(index, total, state) {
   const angleStep = total > 1 ? Math.min(9, 50 / total) : 0;
   const angle = total > 1 ? (index - mid) * angleStep : 0;
   const arcLift = total > 1 ? Math.abs(index - mid) * 2.2 : 0;
-  const extraLift = state === "selected" ? -26 : state === "selectable" ? -8 : 0;
+  const extraLift = state === "selected" ? -30 : state === "selectable" ? -8 : 0;
+  // Selected cards also scale up a bit — lets you actually read the rank
+  // and suit clearly before committing, since the fan overlaps them small.
+  const scale = state === "selected" ? 1.12 : 1;
   return {
-    transform: `translateY(${arcLift + extraLift}px) rotate(${angle}deg)`,
+    transform: `translateY(${arcLift + extraLift}px) rotate(${state === "selected" ? 0 : angle}deg) scale(${scale})`,
     zIndex: state === "selected" ? 50 : index,
   };
 }
@@ -417,32 +420,24 @@ function GameScreen({ game, viewerId, connectionStatus, onRetry, onPlay, onDraw,
     return anchor.rank === card.rank;
   }
 
+  // Tap once to lift a card out of the overlapping fan for a clear look
+  // (ranks/suits are easy to miss when cards overlap, especially on a
+  // phone); tap that same card again to actually play it. A different
+  // card that fits the current selection joins it instead (building a
+  // same-rank or question-chain combo); one that doesn't starts fresh.
   function toggleCard(card) {
+    if (selection.includes(card.id)) {
+      playCards(selection);
+      return;
+    }
+
     const selectedCards = selection.map((id) => you.hand.find((c) => c.id === id)).filter(Boolean);
     if (selectedCards.length > 0 && matchesSelectionMode(selectedCards, card)) {
-      setSelection((current) => (current.includes(card.id) ? current.filter((id) => id !== card.id) : [...current, card.id]));
+      setSelection((current) => [...current, card.id]);
       return;
     }
 
-    if (QUESTIONS.has(card.rank)) {
-      const candidateCount = you.hand.filter((c) => c.id !== card.id && matchesSelectionMode([card], c)).length;
-      if (candidateCount === 0) {
-        playCards([card.id]); // nothing to build a chain from - let auto-resolve draw if it truly has no answer
-      } else {
-        setSelection([card.id]); // has same-suit candidates - offer the choice of chain + closer
-      }
-      return;
-    }
-
-    const siblingCount = you.hand.filter((c) => matchesSelectionMode([card], c) || c.id === card.id).length;
-    if (card.rank !== "A" && siblingCount <= 1) {
-      playCards([card.id]); // nothing to decide - no suit to pick, no siblings to add - just play it
-    } else {
-      // Aces always pause here even solo, so there's a chance to pick a
-      // suit (and rank, for the Ace of Spades) before the play goes out;
-      // same-rank sets pause so the player can choose how many to include.
-      setSelection([card.id]);
-    }
+    setSelection([card.id]);
   }
 
   const top = topCard(game);
@@ -645,7 +640,9 @@ function GameScreen({ game, viewerId, connectionStatus, onRetry, onPlay, onDraw,
           </div>
           {selection.length > 0 && (
             <p className="connection-note">
-              {selection.length} card{selection.length > 1 ? "s" : ""} selected — tap another matching card to add it, tap "Play" to confirm, or tap a selected card again to remove it.
+              {selection.length > 1
+                ? `${selection.length} cards lifted — tap another matching card to add more, or tap any lifted card (or "Play") to play them.`
+                : 'Card lifted for a clear look — tap it again (or "Play") to play it, or tap another matching card to combine them.'}
             </p>
           )}
           <div className="hand">
