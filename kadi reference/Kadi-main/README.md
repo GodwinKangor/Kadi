@@ -63,7 +63,8 @@ A play is illegal whenever it doesn't satisfy any of the legal-play conditions a
 - It isn't the player's turn, or the card doesn't exist in their hand.
 
 Consequences differ slightly by case:
-- A straightforwardly illegal card (first bullet) or an unmatched pending penalty (second bullet): the card is **not played** — it's a one-card penalty draw for the player, and their turn ends.
+- A straightforwardly illegal card while no penalty is pending (first bullet): the card is **not played** — it's a one-card penalty draw for the player, and their turn ends.
+- An illegal card attempted while a penalty is already pending (second bullet, whether it's an unmatched bomb or any other non-bomb, non-Ace card): the card is **not played**, and the player draws the *entire* pending penalty amount, not just one card — trying an illegal card is never a cheaper way to dodge a bomb than just drawing, and the penalty is always fully resolved right there rather than silently carrying over to whoever plays next.
 - An unanswerable Question Card (third bullet): the Question Card played still goes onto the discard pile unanswered — same one-card penalty draw, turn ends, but the card itself is spent, not returned to hand.
 - An unmatched suit/rank lock (fourth bullet): also not played — same one-card penalty draw and turn ends.
 
