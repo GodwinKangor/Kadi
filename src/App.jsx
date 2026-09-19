@@ -795,6 +795,22 @@ export default function App() {
   }
 
   function leaveRoom() {
+    // Best-effort, fire-and-forget — we're navigating away regardless, but
+    // sendBeacon (unlike a normal fetch) reliably delivers even mid-unload,
+    // so the other players see you gone immediately instead of waiting out
+    // the full staleness grace window.
+    if (roomCode) {
+      const payload = JSON.stringify({ action: "leave", roomCode, token });
+      try {
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(API_URL, new Blob([payload], { type: "application/json" }));
+        } else {
+          fetch(API_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, keepalive: true }).catch(() => {});
+        }
+      } catch {
+        // ignore - navigating away regardless
+      }
+    }
     clearSession();
     window.location.href = "/";
   }

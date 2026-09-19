@@ -14,9 +14,15 @@ import { createRoomRecord, updateRoom } from "../lib/kadiStore.js";
 // from the room after this long without a poll, and if it's their turn and
 // they've been gone this long the server plays a card on their behalf so a
 // vanished player doesn't stall the table forever.
-const CONNECTED_WINDOW_MS = 6_000;
-const REMOVE_AFTER_MS = 45_000;
-const AUTO_SKIP_MS = 20_000;
+//
+// These are generous on purpose: mobile browsers can fully suspend a
+// backgrounded tab's JS (not just throttle it), so even a quick notification
+// check or app switch can silently stop polling for a while — the previous
+// tighter values (6s / 45s / 20s) were removing players mid-"just checking
+// something" far too readily.
+const CONNECTED_WINDOW_MS = 8_000;
+const REMOVE_AFTER_MS = 180_000;
+const AUTO_SKIP_MS = 45_000;
 
 function runMaintenance(room) {
   const now = Date.now();
@@ -209,6 +215,32 @@ const handleRestart = withPresence((room, token) => {
   room.game = null;
 });
 
+// An explicit leave, unlike the passive staleness-based removal above,
+// takes effect immediately — so clicking "Leave" doesn't leave the other
+// players staring at a "Reconnecting…" ghost for the full grace window.
+async function handleLeave(body, res) {
+  const code = String(body.roomCode || "").trim().toUpperCase();
+  const token = cleanToken(body.token);
+  if (!code) {
+    res.status(400).json({ ok: false, error: "Room code required." });
+    return;
+  }
+
+  const { error } = await updateRoom(code, (room) => {
+    runMaintenance(room);
+    const index = room.players.findIndex((player) => player.token === token);
+    if (index === -1) return;
+    room.players.splice(index, 1);
+    if (room.hostId === token && room.players.length > 0) {
+      room.hostId = room.players[0].token;
+    }
+  });
+
+  // "Room not found" here just means it's already gone (e.g. TTL expired) —
+  // fine either way, the caller is leaving regardless.
+  res.status(200).json({ ok: !error || /not found/i.test(error) });
+}
+
 async function handleCreate(body, res) {
   const token = cleanToken(body.token);
   const name = cleanName(body.name, "Host");
@@ -275,6 +307,9 @@ export default async function handler(req, res) {
         return;
       case "restart":
         await handleRestart(body, res);
+        return;
+      case "leave":
+        await handleLeave(body, res);
         return;
       default:
         res.status(400).json({ ok: false, error: "Unknown action." });
