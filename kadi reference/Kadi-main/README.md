@@ -70,12 +70,13 @@ Consequences differ slightly by case:
 In every case except the unanswerable Question Card, the attempted card(s) stay in the player's hand and only the single penalty card gets added. An unanswerable Question Card is the one exception: the card the player attempted to play is legal against the pile (it matched), so it's still spent — it's only the missing answer that costs them the penalty draw.
 
 # Winning
-A player cannot win if any of the players is cardless.
+A player cannot win if any of the players is cardless — this applies at the moment of the win itself: if a player completes an otherwise-legitimate winning move while someone else currently has zero cards, the move still stands (their hand still empties, the cards are genuinely played) but the game does not end and no winner is declared. Play just continues normally from there — potentially with more than one cardless player at once — until the cardless player(s) draw back into a hand on a future turn, at which point a later winning move can actually end the game.
 
 For a player to win, they must play all their winning cards in one move and, have had said “Niko Kadi” in the previous round. 
 
 The winning cards are:
--	Answer Cards **except Aces** — 4, 5, 6, 7, 9, or 10, including several of the same rank played together (e.g. going out on three 5s at once). Aces are wild/utility cards now (always playable, can lock a suit and rank), not a legitimate way to close out a win — playing an Ace (alone or in bulk with other Aces) as your last card(s) does not win, even with "Niko Kadi" already said; the cards go back to your hand and play continues.
+-	Answer Cards **except Aces** — 4, 5, 6, 7, 9, or 10, including several of the same rank played together (e.g. going out on three 5s at once).
 -	Question Cards followed by their matching answer cards, including a chain of several same-suit Question Cards closed by a single Answer Card (an Ace is still fine *as the closing answer inside a chain* — only a bare/bulk Ace play by itself can't win), all played in the same move.
--	Jump, Kickback, and Penalty Cards (J, K, 2, 3, Joker) are never winning cards on their own, played singly or in bulk.
+
+Jump, Kickback, Penalty Cards (J, K, 2, 3, Joker), and Aces are never winning cards on their own, played singly or in bulk — but none of that stops you playing one as your very last card. Since it was never going to win anyway, there's no "failed win attempt" to undo: the card is simply played as normal and you're left cardless (which, per the rule above, freezes everyone else out of winning too, until you draw back in). This is different from playing a genuine winning-type card (an Answer or a closed Question chain) without having said "Niko Kadi" first — that *is* treated as a failed win attempt, and gets reverted so you can try again properly.
 
