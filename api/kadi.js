@@ -79,6 +79,12 @@ function touchOrRejoin(room, token, name) {
     name: cleanName(name, hasGameSeat ? "Player" : `Player ${room.players.length + 1}`),
     lastSeenAt: now,
   });
+
+  // The room can now survive down to zero players (see kadiStore.js), so a
+  // stale hostId pointing at nobody is a real case, not just theoretical.
+  if (!room.players.some((player) => player.token === room.hostId)) {
+    room.hostId = token;
+  }
 }
 
 function buildSnapshot(room, token) {
